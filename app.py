@@ -1,9 +1,13 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_from_directory
 import pandas as pd
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import openpyxl
+from werkzeug.utils import secure_filename
+import base64
+from PIL import Image
+import io
 
 app = Flask(__name__)
 
@@ -12,6 +16,9 @@ BASE_DIR = Path(__file__).parent.absolute()
 
 # Глобальный кэш для данных
 _cache = {'df': None, 'file_mtime': None}
+
+# Папка с фото профилей
+PROFILES_DIR = BASE_DIR / 'static' / 'images'
 
 def get_dataframe():
     """Читает Excel с кэшированием - только последние 1500 строк"""
@@ -51,6 +58,71 @@ def get_dataframe():
     _cache['file_mtime'] = current_mtime
     
     return df.copy()
+
+def get_profile_photo(profile_name):
+    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url)"""
+    if not profile_name or pd.isna(profile_name):
+        return None, None
+    
+    # Очищаем имя от пробелов и лишних символов
+    clean_name = str(profile_name).strip()
+    
+    # Поддерживаемые форматы
+    extensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+    
+    thumb_url = None
+    full_url = None
+    
+    for ext in extensions:
+        # Проверяем превью (-thumb)
+        if not thumb_url:
+            thumb_variants = [
+                PROFILES_DIR / f"{clean_name}-thumb{ext}",
+                PROFILES_DIR / f"{clean_name.lower()}-thumb{ext}",
+                PROFILES_DIR / f"{clean_name.upper()}-thumb{ext}",
+            ]
+            for path in thumb_variants:
+                if path.exists():
+                    thumb_url = f"/static/images/{path.name}"
+                    break
+        
+        # Проверяем полное фото
+        if not full_url:
+            full_variants = [
+                PROFILES_DIR / f"{clean_name}{ext}",
+                PROFILES_DIR / f"{clean_name.lower()}{ext}",
+                PROFILES_DIR / f"{clean_name.upper()}{ext}",
+            ]
+            for path in full_variants:
+                if path.exists():
+                    full_url = f"/static/images/{path.name}"
+                    break
+        
+        if thumb_url and full_url:
+            break
+    
+    return thumb_url, full_url
+
+def get_profiles_without_photos():
+    """Возвращает список уникальных профилей без фото"""
+    df = get_dataframe()
+    if df is None:
+        return []
+    
+    # Получаем все уникальные профили
+    profiles = df['profile'].dropna().unique()
+    profiles = sorted([str(p).strip() for p in profiles if str(p).strip()])
+    
+    # Фильтруем те, у которых нет фото
+    missing = []
+    for profile in profiles:
+        thumb_url, full_url = get_profile_photo(profile)
+        if not thumb_url and not full_url:
+            # Считаем сколько раз используется
+            count = len(df[df['profile'] == profile])
+            missing.append({'profile': profile, 'count': count})
+    
+    return sorted(missing, key=lambda x: x['count'], reverse=True)
 
 def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, loading_limit=None, unloading_limit=None):
     """Читает Excel с фильтрами"""
@@ -154,12 +226,17 @@ def process_dataframe(df):
             else:
                 time_str = time_val
         
+        profile_name = row['profile'] if pd.notna(row['profile']) else '—'
+        profile_thumb, profile_full = get_profile_photo(profile_name) if profile_name != '—' else (None, None)
+        
         products.append({
             'number': row['number'] if pd.notna(row['number']) else '—',
             'date': row['date'].strftime('%d.%m.%y') if pd.notna(row['date']) else '—',
             'time': time_str,
             'client': row['client'] if pd.notna(row['client']) else '—',
-            'profile': row['profile'] if pd.notna(row['profile']) else '—',
+            'profile': profile_name,
+            'profile_photo_thumb': profile_thumb,
+            'profile_photo_full': profile_full,
             'color': row['color'] if pd.notna(row['color']) else '—',
             'lamels_qty': lamels_display,
             'kpz_number': row['kpz_number'] if pd.notna(row['kpz_number']) else '—',
@@ -183,6 +260,95 @@ def api_products():
     
     data = get_products(limit, days, no_time_filter, unload_filter, loading_limit, unloading_limit)
     return jsonify(data)
+
+@app.route('/api/profiles/missing')
+def api_missing_profiles():
+    """API для получения списка профилей без фото"""
+    missing = get_profiles_without_photos()
+    return jsonify({
+        'success': True,
+        'total': len(missing),
+        'profiles': missing
+    })
+
+@app.route('/profiles')
+def profiles_page():
+    """Страница со списком профилей без фото"""
+    return render_template('profiles.html')
+
+@app.route('/api/profiles/upload', methods=['POST'])
+def upload_profile_photo():
+    """Загрузка фото профиля с кропом - сохраняет 2 файла"""
+    try:
+        data = request.get_json()
+        profile_name = data.get('profile_name')
+        image_data = data.get('image_data')  # base64
+        crop_data = data.get('crop_data')  # {x, y, width, height}
+        
+        if not profile_name or not image_data:
+            return jsonify({'success': False, 'error': 'Не указано имя профиля или изображение'})
+        
+        # Декодируем base64
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        img_bytes = base64.b64decode(image_data)
+        img_original = Image.open(io.BytesIO(img_bytes))
+        
+        # Конвертируем в RGB если нужно (для PNG с прозрачностью)
+        def convert_to_rgb(image):
+            if image.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                return background
+            return image
+        
+        clean_name = profile_name.strip()
+        
+        # === 1. ПОЛНОЕ ФОТО (оригинал, без кропа) ===
+        img_full = img_original.copy()
+        img_full = convert_to_rgb(img_full)
+        
+        # Resize до 800px (сохраняем пропорции)
+        max_size_full = 800
+        if img_full.width > max_size_full or img_full.height > max_size_full:
+            img_full.thumbnail((max_size_full, max_size_full), Image.Resampling.LANCZOS)
+        
+        full_path = PROFILES_DIR / f"{clean_name}.jpg"
+        img_full.save(full_path, 'JPEG', quality=90, optimize=True)
+        
+        # === 2. ПРЕВЬЮ (с кропом) ===
+        img_thumb = img_original.copy()
+        
+        # Применяем кроп
+        if crop_data:
+            x = int(crop_data.get('x', 0))
+            y = int(crop_data.get('y', 0))
+            width = int(crop_data.get('width', img_thumb.width))
+            height = int(crop_data.get('height', img_thumb.height))
+            img_thumb = img_thumb.crop((x, y, x + width, y + height))
+        
+        img_thumb = convert_to_rgb(img_thumb)
+        
+        # Resize до 300px (для превью)
+        max_size_thumb = 300
+        if img_thumb.width > max_size_thumb or img_thumb.height > max_size_thumb:
+            img_thumb.thumbnail((max_size_thumb, max_size_thumb), Image.Resampling.LANCZOS)
+        
+        thumb_path = PROFILES_DIR / f"{clean_name}-thumb.jpg"
+        img_thumb.save(thumb_path, 'JPEG', quality=85, optimize=True)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Фото для профиля "{clean_name}" успешно загружено (2 файла)',
+            'url_full': f'/static/images/{clean_name}.jpg',
+            'url_thumb': f'/static/images/{clean_name}-thumb.jpg'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

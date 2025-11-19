@@ -330,6 +330,91 @@
             transition: width 0.1s linear;
             box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
         }
+        
+        /* Фото профилей */
+        .profile-photo {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .profile-photo:hover {
+            transform: scale(1.1);
+            border-color: #2563eb;
+        }
+        
+        .no-photo {
+            width: 60px;
+            height: 60px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #9ca3af;
+        }
+        
+        /* Модалка для просмотра фото */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        
+        .modal-content img {
+            max-width: 100%;
+            max-height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        
+        .modal-close:hover {
+            color: #f87171;
+        }
+        
+        .modal-info {
+            position: absolute;
+            bottom: -50px;
+            left: 0;
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -386,6 +471,7 @@
                 <button class="btn-fullscreen" onclick="toggleFullscreen()">
                     <span>⛶</span> Полный экран
                 </button>
+                <button class="btn-secondary" onclick="window.location.href='/profiles'">📷 Профили без фото</button>
             </div>
         </div>
         
@@ -404,12 +490,13 @@
                         <th>№ КПЗ</th>
                         <th>Заказчик</th>
                         <th>Профиль</th>
+                        <th>Фото</th>
                         <th>Количество</th>
                         <th>Цвет</th>
                     </tr>
                 </thead>
                 <tbody id="products-table">
-                    <tr><td colspan="9" class="loading">Загрузка...</td></tr>
+                    <tr><td colspan="10" class="loading">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -454,7 +541,7 @@
                 .then(data => {
                     if (data.error) {
                         document.getElementById('products-table').innerHTML = 
-                            `<tr><td colspan="9" style="color: red;">Ошибка: ${data.error}</td></tr>`;
+                            `<tr><td colspan="10" style="color: red;">Ошибка: ${data.error}</td></tr>`;
                         return;
                     }
                     
@@ -464,7 +551,7 @@
                     const tbody = document.getElementById('products-table');
                     
                     if (data.products.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="9" class="loading">Нет записей</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="10" class="loading">Нет записей</td></tr>';
                         return;
                     }
                     
@@ -473,7 +560,7 @@
                         let html = '';
                         
                         // Секция Загрузка
-                        html += '<tr class="section-divider"><td colspan="9">📦 ЗАГРУЗКА</td></tr>';
+                        html += '<tr class="section-divider"><td colspan="10">📦 ЗАГРУЗКА</td></tr>';
                         html += data.products.map(p => `
                             <tr>
                                 <td>${p.date || '—'}</td>
@@ -483,13 +570,17 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
                         `).join('');
                         
                         // Секция Выгрузка
-                        html += '<tr class="section-divider"><td colspan="9">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
+                        html += '<tr class="section-divider"><td colspan="10">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
                         html += data.unloading_products.map(p => `
                             <tr>
                                 <td>${p.date || '—'}</td>
@@ -499,6 +590,10 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
@@ -516,6 +611,10 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
@@ -524,7 +623,7 @@
                 })
                 .catch(err => {
                     document.getElementById('products-table').innerHTML = 
-                        `<tr><td colspan="9" style="color: red;">Ошибка загрузки: ${err.message}</td></tr>`;
+                        `<tr><td colspan="10" style="color: red;">Ошибка загрузки: ${err.message}</td></tr>`;
                 })
                 .finally(() => {
                     // Скрываем загрузку только если показывали
@@ -594,7 +693,7 @@
                 .then(data => {
                     if (data.error) {
                         document.getElementById('products-table').innerHTML = 
-                            `<tr><td colspan="9" style="color: red;">Ошибка: ${data.error}</td></tr>`;
+                            `<tr><td colspan="10" style="color: red;">Ошибка: ${data.error}</td></tr>`;
                         return;
                     }
                     
@@ -604,7 +703,7 @@
                     const tbody = document.getElementById('products-table');
                     
                     if (data.products.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="9" class="loading">Нет записей</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="10" class="loading">Нет записей</td></tr>';
                         return;
                     }
                     
@@ -613,7 +712,7 @@
                         let html = '';
                         
                         // Секция Загрузка
-                        html += '<tr class="section-divider"><td colspan="9">📦 ЗАГРУЗКА</td></tr>';
+                        html += '<tr class="section-divider"><td colspan="10">📦 ЗАГРУЗКА</td></tr>';
                         html += data.products.map(p => `
                             <tr>
                                 <td>${p.date || '—'}</td>
@@ -623,13 +722,17 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
                         `).join('');
                         
                         // Секция Выгрузка
-                        html += '<tr class="section-divider"><td colspan="9">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
+                        html += '<tr class="section-divider"><td colspan="10">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
                         html += data.unloading_products.map(p => `
                             <tr>
                                 <td>${p.date || '—'}</td>
@@ -639,6 +742,10 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
@@ -656,6 +763,10 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
+                                <td>${p.profile_photo_thumb ? 
+                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
+                                    '<div class="no-photo">📷</div>'
+                                }</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
@@ -671,6 +782,21 @@
             document.body.classList.toggle('fullscreen');
         }
         
+        function openPhotoModal(photoUrl, profileName) {
+            const modal = document.getElementById('photo-modal');
+            const img = document.getElementById('modal-photo');
+            const info = document.getElementById('modal-info');
+            
+            img.src = photoUrl;
+            info.textContent = `Профиль: ${profileName}`;
+            modal.classList.add('active');
+        }
+        
+        function closePhotoModal() {
+            const modal = document.getElementById('photo-modal');
+            modal.classList.remove('active');
+        }
+        
         // Загрузка при старте
         loadProducts(false);
         startAutoRefresh();
@@ -682,5 +808,14 @@
             });
         });
     </script>
+    
+    <!-- Модальное окно для просмотра фото -->
+    <div class="modal" id="photo-modal" onclick="closePhotoModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closePhotoModal()">×</button>
+            <img id="modal-photo" src="" alt="Profile photo">
+            <div class="modal-info" id="modal-info"></div>
+        </div>
+    </div>
 </body>
 </html>
