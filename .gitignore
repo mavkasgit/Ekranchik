@@ -15,9 +15,15 @@ dist/
 instance/
 .webassets-cache
 
-# Excel temporary files
+# Excel files
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
 ~$*.xlsx
 ~$*.xls
+~$*.xlsm
+~$*.xlsb
 
 # IDE
 .vscode/

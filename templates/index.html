@@ -30,6 +30,8 @@
             font-size: 14px;
         }
         .stat strong { color: #2563eb; }
+        .stat-warn { background: #fef3c7; }
+        .stat-warn strong { color: #f59e0b; }
         
         .filters {
             background: white;
@@ -40,29 +42,56 @@
         }
         
         .filter-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            display: flex;
             gap: 15px;
             margin-bottom: 15px;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
         .filter-group label {
-            display: block;
-            margin-bottom: 5px;
             font-size: 14px;
             color: #555;
             font-weight: 500;
+            white-space: nowrap;
+            margin: 0;
         }
         
-        input, select {
-            width: 100%;
-            padding: 10px;
+        .filter-group input[type="number"] {
+            width: 80px;
+            padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
         }
         
-        input:focus, select:focus {
+        .filter-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            margin: 0;
+        }
+        
+        .filter-group.loading-filter {
+            background: #dbeafe;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid #60a5fa;
+        }
+        
+        .filter-group.unloading-filter {
+            background: #fce7f3;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid #f472b6;
+        }
+        
+        .filter-group input:focus {
             outline: none;
             border-color: #2563eb;
         }
@@ -70,6 +99,7 @@
         .buttons {
             display: flex;
             gap: 10px;
+            margin-top: 15px;
         }
         
         button {
@@ -95,11 +125,67 @@
         
         .btn-secondary:hover { background: #4b5563; }
         
+        .btn-fullscreen {
+            background: #6b7280;
+            color: white;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-fullscreen:hover {
+            background: #4b5563;
+        }
+        
+        body.fullscreen .header,
+        body.fullscreen .progress-bar-container,
+        body.fullscreen .filters {
+            display: none;
+        }
+        
+        body.fullscreen .container {
+            max-width: 100%;
+            padding: 0;
+        }
+        
+        body.fullscreen .products {
+            border-radius: 0;
+            height: 100vh;
+            overflow: auto;
+        }
+        
+        .fullscreen-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        body.fullscreen .fullscreen-controls {
+            display: block;
+        }
+        
         .products {
             background: white;
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section-divider {
+            background: #f3f4f6;
+            padding: 12px 20px;
+            font-weight: 600;
+            color: #374151;
+            border-top: 2px solid #e5e7eb;
+            border-bottom: 2px solid #e5e7eb;
         }
         
         table {
@@ -174,71 +260,156 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            overflow: hidden;
+        }
+        
+        .loading-overlay.active {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top: 5px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-bar-container {
+            background: white;
+            border-radius: 8px;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .progress-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .progress-bar-bg {
+            width: 100%;
+            height: 16px;
+            background: #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            border-radius: 8px;
+            width: 0%;
+            transition: width 0.1s linear;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+        }
     </style>
 </head>
 <body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+    
     <div class="container">
         <div class="header">
-            <h1>📊 Excel Админ-панель</h1>
+            <h1>📊 Учет КПЗ - Подвесы</h1>
             <div class="stats">
-                <div class="stat">📦 Всего товаров: <strong id="total-all">—</strong></div>
-                <div class="stat">✓ Показано: <strong id="total-shown">—</strong></div>
+                <div class="stat">📦 Всего записей: <strong id="total-all">—</strong></div>
+                <div class="stat stat-warn">🔍 Показано: <strong id="total-shown">—</strong></div>
                 <div class="stat auto-refresh">
                     <span class="pulse"></span>
-                    Авто-обновление: 3 сек
+                    Обновление: 10 сек
                 </div>
+            </div>
+        </div>
+        
+        <div class="progress-bar-container">
+            <div class="progress-label">
+                <span class="pulse"></span>
+                Автообновление: <span id="progress-timer">10</span>с
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progress-fill"></div>
             </div>
         </div>
         
         <div class="filters">
             <div class="filter-row">
                 <div class="filter-group">
-                    <label>Лимит записей</label>
-                    <select id="limit">
-                        <option value="">Все товары</option>
-                        <option value="5">Последние 5</option>
-                        <option value="10" selected>Последние 10</option>
-                        <option value="20">Последние 20</option>
-                        <option value="50">Последние 50</option>
-                    </select>
+                    <label>Всего записей:</label>
+                    <input type="number" id="limit" min="1" max="10000" value="100">
                 </div>
                 
-                <div class="filter-group">
-                    <label>Категория</label>
-                    <input type="text" id="category" placeholder="Обувь, Одежда...">
+                <div class="filter-group loading-filter">
+                    <input type="checkbox" id="no-time-filter">
+                    <label for="no-time-filter" style="cursor: pointer;">Загрузка:</label>
+                    <input type="number" id="loading-limit" min="1" max="10000" value="10">
                 </div>
                 
-                <div class="filter-group">
-                    <label>Цена от</label>
-                    <input type="number" id="min-price" placeholder="0">
-                </div>
-                
-                <div class="filter-group">
-                    <label>Цена до</label>
-                    <input type="number" id="max-price" placeholder="999999">
+                <div class="filter-group unloading-filter">
+                    <input type="checkbox" id="unload-filter">
+                    <label for="unload-filter" style="cursor: pointer;">Выгрузка:</label>
+                    <input type="number" id="unloading-limit" min="1" max="10000" value="10">
                 </div>
             </div>
             
             <div class="buttons">
-                <button class="btn-primary" onclick="loadProducts()">Применить</button>
+                <button class="btn-primary" onclick="loadProducts(true)">Применить</button>
                 <button class="btn-secondary" onclick="resetFilters()">Сбросить</button>
+                <button class="btn-fullscreen" onclick="toggleFullscreen()">
+                    <span>⛶</span> Полный экран
+                </button>
             </div>
+        </div>
+        
+        <div class="fullscreen-controls">
+            <button class="btn-secondary" onclick="toggleFullscreen()">✕ Выход</button>
         </div>
         
         <div class="products">
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Название</th>
-                        <th>Цена</th>
-                        <th>Категория</th>
-                        <th>Картинка</th>
-                        <th>Описание</th>
+                        <th>Дата</th>
+                        <th>Время</th>
+                        <th>№ Подвеса</th>
+                        <th>Вид материала</th>
+                        <th>№ КПЗ</th>
+                        <th>Заказчик</th>
+                        <th>Профиль</th>
+                        <th>Количество</th>
+                        <th>Цвет</th>
                     </tr>
                 </thead>
                 <tbody id="products-table">
-                    <tr><td colspan="6" class="loading">Загрузка...</td></tr>
+                    <tr><td colspan="9" class="loading">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -247,25 +418,43 @@
     <script>
         let autoRefreshInterval;
         
-        function loadProducts() {
+        function loadProducts(showSpinner = false) {
+            // Показываем загрузку только если это ручной клик
+            const overlay = document.getElementById('loading-overlay');
+            
+            if (showSpinner) {
+                overlay.classList.add('active');
+            }
+            
+            // Собираем параметры фильтров
             const params = new URLSearchParams();
             
             const limit = document.getElementById('limit').value;
-            const category = document.getElementById('category').value;
-            const minPrice = document.getElementById('min-price').value;
-            const maxPrice = document.getElementById('max-price').value;
+            const noTimeFilter = document.getElementById('no-time-filter').checked;
+            const unloadFilter = document.getElementById('unload-filter').checked;
+            const loadingLimit = document.getElementById('loading-limit').value;
+            const unloadingLimit = document.getElementById('unloading-limit').value;
             
             if (limit) params.append('limit', limit);
-            if (category) params.append('category', category);
-            if (minPrice) params.append('min_price', minPrice);
-            if (maxPrice) params.append('max_price', maxPrice);
+            params.append('days', '365'); // Всегда берем за год
+            if (noTimeFilter) {
+                params.append('no_time_filter', 'true');
+                if (loadingLimit) params.append('loading_limit', loadingLimit);
+            }
+            if (unloadFilter) {
+                params.append('unload_filter', 'true');
+                if (unloadingLimit) params.append('unloading_limit', unloadingLimit);
+            }
+            
+            // Сохраняем параметры для автообновления
+            savedFilters = params.toString();
             
             fetch(`/api/products?${params}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
                         document.getElementById('products-table').innerHTML = 
-                            `<tr><td colspan="6" style="color: red;">Ошибка: ${data.error}</td></tr>`;
+                            `<tr><td colspan="9" style="color: red;">Ошибка: ${data.error}</td></tr>`;
                         return;
                     }
                     
@@ -275,47 +464,215 @@
                     const tbody = document.getElementById('products-table');
                     
                     if (data.products.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" class="loading">Нет товаров</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="9" class="loading">Нет записей</td></tr>';
                         return;
                     }
                     
-                    tbody.innerHTML = data.products.map(p => `
-                        <tr>
-                            <td><strong>${p.id || '—'}</strong></td>
-                            <td>${p.title || '—'}</td>
-                            <td>${p.price ? p.price + ' ₽' : '—'}</td>
-                            <td>${p.category || '—'}</td>
-                            <td>
-                                ${p.image_exists ? 
-                                    `<span class="badge badge-success">✓ ${p.image_filename}</span>` : 
-                                    `<span class="badge badge-error">✗ ${p.image_filename || 'Нет'}</span>`
-                                }
-                            </td>
-                            <td>${p.description || '—'}</td>
-                        </tr>
-                    `).join('');
+                    // Если двойной режим (Загрузка + Выгрузка)
+                    if (data.dual_mode && data.unloading_products) {
+                        let html = '';
+                        
+                        // Секция Загрузка
+                        html += '<tr class="section-divider"><td colspan="9">📦 ЗАГРУЗКА</td></tr>';
+                        html += data.products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                        
+                        // Секция Выгрузка
+                        html += '<tr class="section-divider"><td colspan="9">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
+                        html += data.unloading_products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                        
+                        tbody.innerHTML = html;
+                    } else {
+                        // Обычный режим
+                        tbody.innerHTML = data.products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                    }
                 })
                 .catch(err => {
                     document.getElementById('products-table').innerHTML = 
-                        `<tr><td colspan="6" style="color: red;">Ошибка загрузки: ${err.message}</td></tr>`;
+                        `<tr><td colspan="9" style="color: red;">Ошибка загрузки: ${err.message}</td></tr>`;
+                })
+                .finally(() => {
+                    // Скрываем загрузку только если показывали
+                    if (showSpinner) {
+                        overlay.classList.remove('active');
+                    }
                 });
         }
         
         function resetFilters() {
-            document.getElementById('limit').value = '10';
-            document.getElementById('category').value = '';
-            document.getElementById('min-price').value = '';
-            document.getElementById('max-price').value = '';
-            loadProducts();
+            document.getElementById('limit').value = '100';
+            document.getElementById('loading-limit').value = '10';
+            document.getElementById('unloading-limit').value = '10';
+            document.getElementById('no-time-filter').checked = false;
+            document.getElementById('unload-filter').checked = false;
+            loadProducts(true);
         }
         
+        let autoRefreshEnabled = true;
+        let savedFilters = null;
+        
         function startAutoRefresh() {
+            const refreshInterval = 10000; // 10 секунд
+            const updateFrequency = 100; // Обновление прогресс-бара каждые 100мс
+            
+            let elapsed = 0;
+            let progressInterval;
+            
+            // Сбрасываем прогресс-бар
+            function resetProgress() {
+                elapsed = 0;
+                document.getElementById('progress-fill').style.width = '0%';
+                document.getElementById('progress-timer').textContent = '10';
+            }
+            
+            // Обновляем прогресс-бар
+            function updateProgress() {
+                elapsed += updateFrequency;
+                const percent = (elapsed / refreshInterval) * 100;
+                const secondsLeft = Math.ceil((refreshInterval - elapsed) / 1000);
+                
+                document.getElementById('progress-fill').style.width = percent + '%';
+                document.getElementById('progress-timer').textContent = secondsLeft;
+                
+                // Когда прогресс-бар заполнится - обновляем данные
+                if (elapsed >= refreshInterval) {
+                    if (autoRefreshEnabled && savedFilters) {
+                        // Обновляем данные с СОХРАНЕННЫМИ фильтрами
+                        loadProductsWithParams(savedFilters);
+                    }
+                    resetProgress(); // Сбрасываем бар
+                }
+            }
+            
+            // Очищаем старые интервалы
             if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-            autoRefreshInterval = setInterval(loadProducts, 3000);
+            if (progressInterval) clearInterval(progressInterval);
+            
+            // Запускаем обновление прогресс-бара
+            resetProgress();
+            progressInterval = setInterval(updateProgress, updateFrequency);
+        }
+        
+        function loadProductsWithParams(params) {
+            fetch(`/api/products?${params}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('products-table').innerHTML = 
+                            `<tr><td colspan="9" style="color: red;">Ошибка: ${data.error}</td></tr>`;
+                        return;
+                    }
+                    
+                    document.getElementById('total-all').textContent = data.total_all;
+                    document.getElementById('total-shown').textContent = data.total;
+                    
+                    const tbody = document.getElementById('products-table');
+                    
+                    if (data.products.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" class="loading">Нет записей</td></tr>';
+                        return;
+                    }
+                    
+                    // Если двойной режим (Загрузка + Выгрузка)
+                    if (data.dual_mode && data.unloading_products) {
+                        let html = '';
+                        
+                        // Секция Загрузка
+                        html += '<tr class="section-divider"><td colspan="9">📦 ЗАГРУЗКА</td></tr>';
+                        html += data.products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                        
+                        // Секция Выгрузка
+                        html += '<tr class="section-divider"><td colspan="9">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
+                        html += data.unloading_products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                        
+                        tbody.innerHTML = html;
+                    } else {
+                        // Обычный режим
+                        tbody.innerHTML = data.products.map(p => `
+                            <tr>
+                                <td>${p.date || '—'}</td>
+                                <td>${p.time || '—'}</td>
+                                <td><strong>${p.number || '—'}</strong></td>
+                                <td>${p.material_type || '—'}</td>
+                                <td>${p.kpz_number || '—'}</td>
+                                <td>${p.client || '—'}</td>
+                                <td>${p.profile || '—'}</td>
+                                <td><strong>${p.lamels_qty || 0}</strong></td>
+                                <td>${p.color || '—'}</td>
+                            </tr>
+                        `).join('');
+                    }
+                })
+                .catch(err => {
+                    console.error('Ошибка автообновления:', err);
+                });
+        }
+        
+        function toggleFullscreen() {
+            document.body.classList.toggle('fullscreen');
         }
         
         // Загрузка при старте
-        loadProducts();
+        loadProducts(false);
         startAutoRefresh();
         
         // Enter для применения
