@@ -15,6 +15,9 @@ dist/
 instance/
 .webassets-cache
 
+# Environment variables
+.env
+
 # Excel files
 *.xlsx
 *.xls

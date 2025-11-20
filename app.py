@@ -11,17 +11,43 @@ import io
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from dotenv import load_dotenv
+
+# Загружаем переменные из .env файла
+load_dotenv()
 
 app = Flask(__name__)
 
 # Определяем директорию где лежит app.py
 BASE_DIR = Path(__file__).parent.absolute()
 
+# Путь к Excel файлу из переменной окружения
+EXCEL_FILE_PATH = os.getenv('EXCEL_FILE_PATH')
+if EXCEL_FILE_PATH:
+    EXCEL_FILE_PATH = Path(EXCEL_FILE_PATH)
+    # Если указан конкретный файл
+    if EXCEL_FILE_PATH.is_file():
+        EXCEL_DIR = EXCEL_FILE_PATH.parent
+        EXCEL_FILENAME = EXCEL_FILE_PATH.name
+    else:
+        # Если указана только директория - ищем .xlsm файлы в ней
+        EXCEL_DIR = EXCEL_FILE_PATH
+        EXCEL_FILENAME = None
+else:
+    # По умолчанию - текущая директория
+    EXCEL_DIR = BASE_DIR
+    EXCEL_FILENAME = None
+
+print(f"📁 Excel директория: {EXCEL_DIR}")
+if EXCEL_FILENAME:
+    print(f"📄 Excel файл: {EXCEL_FILENAME}")
+
 # Глобальный кэш для данных
 _cache = {'df': None, 'file_mtime': None, 'cache_time': None, 'force_reload': False}
 
 # Папка с фото профилей
-PROFILES_DIR = BASE_DIR / 'static' / 'images'
+profiles_dir = os.getenv('PROFILES_DIR', 'static/images')
+PROFILES_DIR = BASE_DIR / profiles_dir if not Path(profiles_dir).is_absolute() else Path(profiles_dir)
 
 # Watchdog для отслеживания изменений Excel файла
 class ExcelFileHandler(FileSystemEventHandler):
@@ -50,25 +76,47 @@ observer = None
 def start_file_watcher():
     global observer
     if observer is None:
+        # Проверяем доступность директории
+        if not EXCEL_DIR.exists():
+            print(f"⚠️ Предупреждение: директория недоступна, мониторинг не запущен: {EXCEL_DIR}")
+            return
+        
         event_handler = ExcelFileHandler()
         observer = Observer()
-        observer.schedule(event_handler, str(BASE_DIR), recursive=False)
+        observer.schedule(event_handler, str(EXCEL_DIR), recursive=False)
         observer.start()
-        print(f"👁️ Мониторинг файлов запущен: {BASE_DIR}")
+        print(f"👁️ Мониторинг файлов запущен: {EXCEL_DIR}")
+        if EXCEL_DIR != BASE_DIR:
+            print(f"   (сетевой диск - возможна задержка до 5 сек)")
 
 def get_dataframe():
     """Читает Excel с кэшированием - последние 300 строк"""
     from datetime import datetime, timedelta
     
-    files = [f for f in os.listdir(BASE_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
-    if not files:
+    # Проверяем доступность директории (для сетевых дисков)
+    if not EXCEL_DIR.exists():
+        print(f"❌ Ошибка: директория недоступна: {EXCEL_DIR}")
+        print(f"   Проверьте сетевое подключение и путь в .env файле")
         return None
     
-    excel_file = BASE_DIR / files[0]
+    # Ищем Excel файл
+    if EXCEL_FILENAME:
+        # Конкретный файл указан
+        excel_file = EXCEL_DIR / EXCEL_FILENAME
+        if not excel_file.exists():
+            print(f"❌ Ошибка: файл не найден: {excel_file}")
+            return None
+    else:
+        # Ищем любой .xlsm файл в директории
+        files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
+        if not files:
+            print(f"❌ Ошибка: .xlsm файлы не найдены в {EXCEL_DIR}")
+            return None
+        excel_file = EXCEL_DIR / files[0]
     current_mtime = os.path.getmtime(excel_file)
     
     # Проверяем временный файл (если Excel открыт)
-    temp_file = BASE_DIR / f"~${files[0]}"
+    temp_file = EXCEL_DIR / f"~${excel_file.name}"
     if temp_file.exists():
         temp_mtime = os.path.getmtime(temp_file)
         current_mtime = max(current_mtime, temp_mtime)
@@ -87,9 +135,11 @@ def get_dataframe():
         return _cache['df'].copy()
     
     # Сбрасываем флаг принудительной перезагрузки
+    if force_reload:
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        print(f"🔄 [{timestamp}] Чтение Excel (файл изменен)...")
+    
     _cache['force_reload'] = False
-    timestamp = datetime.now().strftime('%H:%M:%S')
-    print(f"🔄 [{timestamp}] Чтение Excel...")
     
     # Быстро узнаем количество строк
     wb = openpyxl.load_workbook(excel_file, read_only=True)
@@ -97,29 +147,23 @@ def get_dataframe():
     total_rows = ws.max_row
     wb.close()
     
-    # Читаем последние 300 строк (компромисс между скоростью и полнотой)
-    rows_to_read = min(300, total_rows - 2)
+    # Читаем последние 100 строк (для слабых компьютеров)
+    rows_to_read = min(100, total_rows - 2)
     skip_rows = list(range(2, total_rows - rows_to_read))
     
-    print(f"  📖 Читаем {rows_to_read} строк из {total_rows}")
+    # Читаем только нужные колонки для ускорения
+    cols_to_use = [3, 5, 6, 7, 11, 12, 16, 17, 19]  # Индексы нужных колонок
+    df = pd.read_excel(excel_file, sheet_name='Подвесы', skiprows=skip_rows, 
+                       usecols=cols_to_use, engine='openpyxl')
     
-    df = pd.read_excel(excel_file, sheet_name='Подвесы', skiprows=skip_rows, engine='openpyxl')
-    
-    # Переименовываем колонки
-    df.columns = [
-        'old_num', 'datetime', 'comment', 'date', 'number', 'time', 'shift',
-        'material_type', 'quality', 'manager', 'kpz_number', 'client', 'profile',
-        'suspension_type', 'processing_type', 'thickness', 'color', 'suspensions_qty',
-        'conditional_qty', 'lamels_qty', 'unknown1', 'meterage', 'area', 'weight', 'on_suspension'
-    ]
+    # Переименовываем только нужные колонки
+    df.columns = ['date', 'number', 'time', 'material_type', 'kpz_number', 
+                  'client', 'profile', 'color', 'lamels_qty']
     
     # ВАЖНО: удаляем полностью пустые строки (где все ячейки пусты)
     rows_before = len(df)
     df = df.dropna(how='all')
     rows_after = len(df)
-    
-    if rows_before != rows_after:
-        print(f"  ⚠️ Удалено {rows_before - rows_after} пустых строк из {rows_before}")
     
     # Сохраняем в кэш с временной меткой
     from datetime import datetime
@@ -127,8 +171,9 @@ def get_dataframe():
     _cache['file_mtime'] = current_mtime
     _cache['cache_time'] = datetime.now()
     
-    timestamp = datetime.now().strftime('%H:%M:%S')
-    print(f"✅ [{timestamp}] Загружено {len(df)} строк")
+    if force_reload:
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        print(f"✅ [{timestamp}] Загружено {len(df)} строк")
     
     return df.copy()
 
@@ -352,19 +397,35 @@ def api_missing_profiles():
 def api_file_status():
     """Проверка статуса Excel файла + флаг изменения"""
     try:
-        # Находим файл
-        files = [f for f in os.listdir(BASE_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
-        if not files:
+        # Проверяем доступность директории
+        if not EXCEL_DIR.exists():
             return jsonify({
                 'success': False,
-                'status': 'not_found',
-                'message': 'Excel файл не найден'
+                'status': 'network_error',
+                'message': 'Сетевая директория недоступна'
             })
         
-        excel_file = BASE_DIR / files[0]
+        # Находим файл
+        if EXCEL_FILENAME:
+            excel_file = EXCEL_DIR / EXCEL_FILENAME
+            if not excel_file.exists():
+                return jsonify({
+                    'success': False,
+                    'status': 'not_found',
+                    'message': f'Файл не найден: {EXCEL_FILENAME}'
+                })
+        else:
+            files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
+            if not files:
+                return jsonify({
+                    'success': False,
+                    'status': 'not_found',
+                    'message': 'Excel файл не найден'
+                })
+            excel_file = EXCEL_DIR / files[0]
         
         # Проверяем временный файл (Excel открыт?)
-        temp_file = BASE_DIR / f"~${files[0]}"
+        temp_file = EXCEL_DIR / f"~${excel_file.name}"
         is_open = temp_file.exists()
         
         # Получаем время последнего изменения
@@ -393,7 +454,8 @@ def api_file_status():
         return jsonify({
             'success': True,
             'status': 'open' if is_open else 'closed',
-            'filename': files[0],
+            'filename': excel_file.name,
+            'filepath': str(excel_file) if EXCEL_DIR != BASE_DIR else excel_file.name,
             'changed': file_changed,  # Флаг для фронтенда
             'last_modified': last_modified.strftime('%d.%m.%Y %H:%M:%S'),
             'last_modified_relative': get_relative_time(last_modified),
@@ -505,11 +567,22 @@ def upload_profile_photo():
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
+    # Загружаем настройки из .env
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('DEBUG', 'True').lower() == 'true'
+    
     # Запускаем файловый мониторинг
     start_file_watcher()
     
+    print(f"\n🚀 Запуск сервера на http://localhost:{port}")
+    print(f"   Режим отладки: {debug}")
+    print(f"   Excel директория: {EXCEL_DIR}")
+    if EXCEL_DIR != BASE_DIR:
+        print(f"   ⚠️ Используется сетевой диск - проверьте доступность!")
+    print()
+    
     try:
-        app.run(debug=True, port=5000)
+        app.run(debug=debug, port=port, host='0.0.0.0')
     finally:
         # Останавливаем observer при выходе
         if observer:

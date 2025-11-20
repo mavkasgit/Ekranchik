@@ -686,14 +686,15 @@
         
         let autoRefreshEnabled = true;
         let savedFilters = null;
+        let isLoading = false;  // Флаг загрузки
         
-        // Автообновление под капотом каждые 10 секунд
+        // Автообновление под капотом каждые 30 секунд (для слабых компов)
         function startAutoRefresh() {
             setInterval(() => {
-                if (autoRefreshEnabled && savedFilters) {
+                if (autoRefreshEnabled && savedFilters && !isLoading) {
                     loadProductsWithParams(savedFilters);
                 }
-            }, 10000);
+            }, 30000);
         }
         
         function showTableSpinner() {
@@ -725,12 +726,20 @@
         }
         
         function loadProductsWithParams(params) {
+            // Если уже идет загрузка - пропускаем
+            if (isLoading) {
+                console.log('⏭️ Пропуск: предыдущее обновление еще выполняется');
+                return;
+            }
+            
+            isLoading = true;
             const timestamp = new Date().toLocaleTimeString();
             console.log(`🔄 [${timestamp}] Автообновление: запрос данных...`);
             
             fetch(`/api/products?${params}`)
                 .then(res => res.json())
                 .then(data => {
+                    isLoading = false;
                     const responseTime = new Date().toLocaleTimeString();
                     console.log(`✅ [${responseTime}] Получено: ${data.total} записей`);
                     
@@ -825,6 +834,7 @@
                     }
                 })
                 .catch(err => {
+                    isLoading = false;
                     console.error('Ошибка автообновления:', err);
                     hideTableSpinner();
                 });
@@ -896,10 +906,10 @@
         startAutoRefresh();
         checkFileStatus();
         
-        // Проверяем статус файла каждые 2 секунды (быстрее реагируем на Ctrl+S)
-        setInterval(checkFileStatus, 2000);
+        // Проверяем статус файла каждые 30 секунд
+        setInterval(checkFileStatus, 30000);
         
-        console.log('⏰ Автообновление: каждые 10 секунд (под капотом)');
+        console.log('⏰ Автообновление: каждые 30 секунд (под капотом)');
         
         // Enter для применения
         document.querySelectorAll('input, select').forEach(el => {
