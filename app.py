@@ -8,6 +8,9 @@ from werkzeug.utils import secure_filename
 import base64
 from PIL import Image
 import io
+import time
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 app = Flask(__name__)
 
@@ -15,13 +18,48 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).parent.absolute()
 
 # Глобальный кэш для данных
-_cache = {'df': None, 'file_mtime': None}
+_cache = {'df': None, 'file_mtime': None, 'cache_time': None, 'force_reload': False}
 
 # Папка с фото профилей
 PROFILES_DIR = BASE_DIR / 'static' / 'images'
 
+# Watchdog для отслеживания изменений Excel файла
+class ExcelFileHandler(FileSystemEventHandler):
+    def __init__(self):
+        self.last_modified = {}
+    
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+        # Отслеживаем .xlsm и временные файлы ~$
+        if event.src_path.endswith('.xlsm') or '~$' in event.src_path:
+            # Дебаунсинг: игнорируем события чаще чем раз в 1 секунду
+            now = time.time()
+            if event.src_path in self.last_modified:
+                if now - self.last_modified[event.src_path] < 1.0:
+                    return
+            
+            self.last_modified[event.src_path] = now
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            print(f"📝 [{timestamp}] Файл изменен: {os.path.basename(event.src_path)}")
+            _cache['force_reload'] = True
+            _cache['file_changed'] = True  # Флаг для фронтенда
+
+# Запускаем watchdog в отдельном потоке
+observer = None
+def start_file_watcher():
+    global observer
+    if observer is None:
+        event_handler = ExcelFileHandler()
+        observer = Observer()
+        observer.schedule(event_handler, str(BASE_DIR), recursive=False)
+        observer.start()
+        print(f"👁️ Мониторинг файлов запущен: {BASE_DIR}")
+
 def get_dataframe():
-    """Читает Excel с кэшированием - только последние 1500 строк"""
+    """Читает Excel с кэшированием - последние 300 строк"""
+    from datetime import datetime, timedelta
+    
     files = [f for f in os.listdir(BASE_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
     if not files:
         return None
@@ -29,9 +67,29 @@ def get_dataframe():
     excel_file = BASE_DIR / files[0]
     current_mtime = os.path.getmtime(excel_file)
     
-    # Если файл не менялся - возвращаем из кэша
-    if _cache['df'] is not None and _cache['file_mtime'] == current_mtime:
+    # Проверяем временный файл (если Excel открыт)
+    temp_file = BASE_DIR / f"~${files[0]}"
+    if temp_file.exists():
+        temp_mtime = os.path.getmtime(temp_file)
+        current_mtime = max(current_mtime, temp_mtime)
+    
+    # Принудительная перезагрузка от watchdog
+    force_reload = _cache.get('force_reload', False)
+    
+    # Проверяем кэш
+    cache_valid = (
+        _cache.get('df') is not None and 
+        _cache.get('file_mtime') == current_mtime and
+        not force_reload  # Сбрасываем кэш при изменении файла
+    )
+    
+    if cache_valid:
         return _cache['df'].copy()
+    
+    # Сбрасываем флаг принудительной перезагрузки
+    _cache['force_reload'] = False
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    print(f"🔄 [{timestamp}] Чтение Excel...")
     
     # Быстро узнаем количество строк
     wb = openpyxl.load_workbook(excel_file, read_only=True)
@@ -39,9 +97,11 @@ def get_dataframe():
     total_rows = ws.max_row
     wb.close()
     
-    # Читаем только последние 1500 строк (этого хватит на несколько месяцев)
-    rows_to_read = min(1500, total_rows - 2)
+    # Читаем последние 300 строк (компромисс между скоростью и полнотой)
+    rows_to_read = min(300, total_rows - 2)
     skip_rows = list(range(2, total_rows - rows_to_read))
+    
+    print(f"  📖 Читаем {rows_to_read} строк из {total_rows}")
     
     df = pd.read_excel(excel_file, sheet_name='Подвесы', skiprows=skip_rows, engine='openpyxl')
     
@@ -53,9 +113,22 @@ def get_dataframe():
         'conditional_qty', 'lamels_qty', 'unknown1', 'meterage', 'area', 'weight', 'on_suspension'
     ]
     
-    # Сохраняем в кэш
+    # ВАЖНО: удаляем полностью пустые строки (где все ячейки пусты)
+    rows_before = len(df)
+    df = df.dropna(how='all')
+    rows_after = len(df)
+    
+    if rows_before != rows_after:
+        print(f"  ⚠️ Удалено {rows_before - rows_after} пустых строк из {rows_before}")
+    
+    # Сохраняем в кэш с временной меткой
+    from datetime import datetime
     _cache['df'] = df
     _cache['file_mtime'] = current_mtime
+    _cache['cache_time'] = datetime.now()
+    
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    print(f"✅ [{timestamp}] Загружено {len(df)} строк")
     
     return df.copy()
 
@@ -128,18 +201,22 @@ def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, 
     """Читает Excel с фильтрами"""
     
     try:
-        # Получаем данные из кэша (быстро!)
+        # Получаем данные из кэша
         df = get_dataframe()
         if df is None:
             return {'error': 'Excel файл (.xlsm) не найден', 'products': []}
         
         total_before = len(df)
         
-        # Фильтр по дате (последние N дней)
+        # Фильтр валидных строк: должна быть дата ИЛИ номер подвеса
+        df = df[(pd.notna(df['date'])) | (pd.notna(df['number']))]
+        
+        # Фильтр по дате (последние N дней) - только для строк с датой
         if days:
             cutoff_date = datetime.now() - timedelta(days=days)
             df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            df = df[df['date'] >= cutoff_date]
+            # Оставляем строки: (дата >= cutoff) ИЛИ (дата пустая, но есть номер)
+            df = df[(df['date'] >= cutoff_date) | (pd.isna(df['date']) & pd.notna(df['number']))]
         
         loading_products = []
         unloading_products = []
@@ -271,6 +348,83 @@ def api_missing_profiles():
         'profiles': missing
     })
 
+@app.route('/api/file/status')
+def api_file_status():
+    """Проверка статуса Excel файла + флаг изменения"""
+    try:
+        # Находим файл
+        files = [f for f in os.listdir(BASE_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
+        if not files:
+            return jsonify({
+                'success': False,
+                'status': 'not_found',
+                'message': 'Excel файл не найден'
+            })
+        
+        excel_file = BASE_DIR / files[0]
+        
+        # Проверяем временный файл (Excel открыт?)
+        temp_file = BASE_DIR / f"~${files[0]}"
+        is_open = temp_file.exists()
+        
+        # Получаем время последнего изменения
+        import datetime
+        # Используем ctime (время изменения) или mtime (время модификации)
+        # В Windows при сохранении в Excel обновляется mtime
+        mtime = os.path.getmtime(excel_file)
+        
+        # Если файл открыт, также проверяем временный файл
+        if is_open:
+            temp_mtime = os.path.getmtime(temp_file)
+            # Берем более свежее время
+            mtime = max(mtime, temp_mtime)
+        
+        last_modified = datetime.datetime.fromtimestamp(mtime)
+        
+        # Размер файла
+        file_size = os.path.getsize(excel_file)
+        size_mb = round(file_size / (1024 * 1024), 2)
+        
+        # Проверяем флаг изменения и сбрасываем его
+        file_changed = _cache.get('file_changed', False)
+        if file_changed:
+            _cache['file_changed'] = False  # Сбрасываем после считывания
+        
+        return jsonify({
+            'success': True,
+            'status': 'open' if is_open else 'closed',
+            'filename': files[0],
+            'changed': file_changed,  # Флаг для фронтенда
+            'last_modified': last_modified.strftime('%d.%m.%Y %H:%M:%S'),
+            'last_modified_relative': get_relative_time(last_modified),
+            'size_mb': size_mb,
+            'is_open': is_open
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+def get_relative_time(dt):
+    """Возвращает относительное время (например, '5 минут назад')"""
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    diff = now - dt
+    
+    if diff < timedelta(minutes=1):
+        return 'только что'
+    elif diff < timedelta(hours=1):
+        mins = int(diff.total_seconds() / 60)
+        return f'{mins} мин. назад'
+    elif diff < timedelta(days=1):
+        hours = int(diff.total_seconds() / 3600)
+        return f'{hours} ч. назад'
+    else:
+        days = diff.days
+        return f'{days} дн. назад'
+
 @app.route('/profiles')
 def profiles_page():
     """Страница со списком профилей без фото"""
@@ -351,4 +505,13 @@ def upload_profile_photo():
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Запускаем файловый мониторинг
+    start_file_watcher()
+    
+    try:
+        app.run(debug=True, port=5000)
+    finally:
+        # Останавливаем observer при выходе
+        if observer:
+            observer.stop()
+            observer.join()
