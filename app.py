@@ -38,12 +38,12 @@ else:
     EXCEL_DIR = BASE_DIR
     EXCEL_FILENAME = None
 
-print(f"📁 Excel директория: {EXCEL_DIR}")
+print(f"[INFO] Excel директория: {EXCEL_DIR}")
 if EXCEL_FILENAME:
-    print(f"📄 Excel файл: {EXCEL_FILENAME}")
+    print(f"[INFO] Excel файл: {EXCEL_FILENAME}")
 
 # Глобальный кэш для данных
-_cache = {'df': None, 'file_mtime': None, 'cache_time': None, 'force_reload': False}
+_cache = {'df': None, 'file_mtime': None, 'cache_time': None, 'force_reload': True}
 
 # Папка с фото профилей
 profiles_dir = os.getenv('PROFILES_DIR', 'static/images')
@@ -67,7 +67,7 @@ class ExcelFileHandler(FileSystemEventHandler):
             
             self.last_modified[event.src_path] = now
             timestamp = datetime.now().strftime('%H:%M:%S')
-            print(f"📝 [{timestamp}] Файл изменен: {os.path.basename(event.src_path)}")
+            print(f"[FILE] [{timestamp}] Файл изменен: {os.path.basename(event.src_path)}")
             _cache['force_reload'] = True
             _cache['file_changed'] = True  # Флаг для фронтенда
 
@@ -78,14 +78,14 @@ def start_file_watcher():
     if observer is None:
         # Проверяем доступность директории
         if not EXCEL_DIR.exists():
-            print(f"⚠️ Предупреждение: директория недоступна, мониторинг не запущен: {EXCEL_DIR}")
+            print(f"[WARN] Предупреждение: директория недоступна, мониторинг не запущен: {EXCEL_DIR}")
             return
         
         event_handler = ExcelFileHandler()
         observer = Observer()
         observer.schedule(event_handler, str(EXCEL_DIR), recursive=False)
         observer.start()
-        print(f"👁️ Мониторинг файлов запущен: {EXCEL_DIR}")
+        print(f"[WATCH] Мониторинг файлов запущен: {EXCEL_DIR}")
         if EXCEL_DIR != BASE_DIR:
             print(f"   (сетевой диск - возможна задержка до 5 сек)")
 
@@ -95,7 +95,7 @@ def get_dataframe():
     
     # Проверяем доступность директории (для сетевых дисков)
     if not EXCEL_DIR.exists():
-        print(f"❌ Ошибка: директория недоступна: {EXCEL_DIR}")
+        print(f"[ERROR] Ошибка: директория недоступна: {EXCEL_DIR}")
         print(f"   Проверьте сетевое подключение и путь в .env файле")
         return None
     
@@ -104,13 +104,13 @@ def get_dataframe():
         # Конкретный файл указан
         excel_file = EXCEL_DIR / EXCEL_FILENAME
         if not excel_file.exists():
-            print(f"❌ Ошибка: файл не найден: {excel_file}")
+            print(f"[ERROR] Ошибка: файл не найден: {excel_file}")
             return None
     else:
         # Ищем любой .xlsm файл в директории
         files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
         if not files:
-            print(f"❌ Ошибка: .xlsm файлы не найдены в {EXCEL_DIR}")
+            print(f"[ERROR] Ошибка: .xlsm файлы не найдены в {EXCEL_DIR}")
             return None
         excel_file = EXCEL_DIR / files[0]
     current_mtime = os.path.getmtime(excel_file)
@@ -137,33 +137,28 @@ def get_dataframe():
     # Сбрасываем флаг принудительной перезагрузки
     if force_reload:
         timestamp = datetime.now().strftime('%H:%M:%S')
-        print(f"🔄 [{timestamp}] Чтение Excel (файл изменен)...")
+        print(f"[RELOAD] [{timestamp}] Чтение Excel (файл изменен)...")
     
     _cache['force_reload'] = False
     
-    # Быстро узнаем количество строк
-    wb = openpyxl.load_workbook(excel_file, read_only=True)
-    ws = wb['Подвесы']
-    total_rows = ws.max_row
-    wb.close()
+    # Читаем все данные (пропускаем только инструкции)
+    # Строка 0-1: инструкции, Строка 2: заголовки, Строка 3+: данные
+    df = pd.read_excel(excel_file, sheet_name='Подвесы', skiprows=[0, 1], 
+                       usecols=[3, 4, 5, 7, 10, 11, 12, 16, 19], engine='openpyxl')
     
-    # Читаем последние 100 строк (для слабых компьютеров)
-    rows_to_read = min(100, total_rows - 2)
-    skip_rows = list(range(2, total_rows - rows_to_read))
+    print(f"[DEBUG] Прочитано всего строк: {len(df)}")
     
-    # Читаем только нужные колонки для ускорения
-    cols_to_use = [3, 5, 6, 7, 11, 12, 16, 17, 19]  # Индексы нужных колонок
-    df = pd.read_excel(excel_file, sheet_name='Подвесы', skiprows=skip_rows, 
-                       usecols=cols_to_use, engine='openpyxl')
+    # Берем последние 100 строк для скорости
+    df = df.tail(100)
     
-    # Переименовываем только нужные колонки
+    # Переименовываем колонки для удобства
     df.columns = ['date', 'number', 'time', 'material_type', 'kpz_number', 
                   'client', 'profile', 'color', 'lamels_qty']
     
     # ВАЖНО: удаляем полностью пустые строки (где все ячейки пусты)
-    rows_before = len(df)
     df = df.dropna(how='all')
-    rows_after = len(df)
+    
+    print(f"[DEBUG] После tail(100) и удаления пустых: {len(df)} строк")
     
     # Сохраняем в кэш с временной меткой
     from datetime import datetime
@@ -173,7 +168,7 @@ def get_dataframe():
     
     if force_reload:
         timestamp = datetime.now().strftime('%H:%M:%S')
-        print(f"✅ [{timestamp}] Загружено {len(df)} строк")
+        print(f"[OK] [{timestamp}] Загружено {len(df)} строк")
     
     return df.copy()
 
@@ -252,9 +247,11 @@ def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, 
             return {'error': 'Excel файл (.xlsm) не найден', 'products': []}
         
         total_before = len(df)
+        print(f"[DEBUG] Загружено строк из Excel: {total_before}")
         
         # Фильтр валидных строк: должна быть дата ИЛИ номер подвеса
         df = df[(pd.notna(df['date'])) | (pd.notna(df['number']))]
+        print(f"[DEBUG] После фильтра (дата или номер): {len(df)} строк")
         
         # Фильтр по дате (последние N дней) - только для строк с датой
         if days:
@@ -262,6 +259,7 @@ def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, 
             df['date'] = pd.to_datetime(df['date'], errors='coerce')
             # Оставляем строки: (дата >= cutoff) ИЛИ (дата пустая, но есть номер)
             df = df[(df['date'] >= cutoff_date) | (pd.isna(df['date']) & pd.notna(df['number']))]
+            print(f"[DEBUG] После фильтра по дате ({days} дней): {len(df)} строк")
         
         loading_products = []
         unloading_products = []
@@ -579,11 +577,11 @@ if __name__ == '__main__':
     # Запускаем файловый мониторинг
     start_file_watcher()
     
-    print(f"\n🚀 Запуск сервера на http://localhost:{port}")
+    print(f"\n[START] Запуск сервера на http://localhost:{port}")
     print(f"   Режим отладки: {debug}")
     print(f"   Excel директория: {EXCEL_DIR}")
     if EXCEL_DIR != BASE_DIR:
-        print(f"   ⚠️ Используется сетевой диск - проверьте доступность!")
+        print(f"   [WARN] Используется сетевой диск - проверьте доступность!")
     print()
     
     try:
