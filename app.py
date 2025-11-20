@@ -340,13 +340,18 @@ def process_dataframe(df):
         # Форматирование времени (убираем секунды)
         time_str = '—'
         if pd.notna(row['time']):
-            time_val = str(row['time'])
-            # Формат может быть "HH:MM:SS" или просто время
-            if ':' in time_val:
-                parts = time_val.split(':')
-                time_str = f"{parts[0]}:{parts[1]}"
+            time_obj = row['time']
+            # Если это объект time/datetime - конвертируем
+            if hasattr(time_obj, 'strftime'):
+                time_str = time_obj.strftime('%H:%M')
             else:
-                time_str = time_val
+                # Если строка - парсим
+                time_val = str(time_obj)
+                if ':' in time_val:
+                    parts = time_val.split(':')
+                    time_str = f"{parts[0]}:{parts[1]}"
+                else:
+                    time_str = time_val
         
         profile_name = row['profile'] if pd.notna(row['profile']) else '—'
         profile_thumb, profile_full = get_profile_photo(profile_name) if profile_name != '—' else (None, None)
