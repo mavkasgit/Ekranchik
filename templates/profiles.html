@@ -946,13 +946,21 @@
                 height: cropData.height * scale
             };
             
+            // Собираем дополнительные параметры
+            const quantityPerHanger = document.getElementById('quantity-per-hanger').value;
+            const profileLength = document.getElementById('profile-length').value;
+            const profileNotes = document.getElementById('profile-notes').value;
+            
             fetch('/api/profiles/upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     profile_name: currentProfile,
                     image_data: currentImage.src,
-                    crop_data: scaledCrop
+                    crop_data: scaledCrop,
+                    quantity_per_hanger: quantityPerHanger ? parseInt(quantityPerHanger) : null,
+                    length: profileLength ? parseFloat(profileLength) : null,
+                    notes: profileNotes || ''
                 })
             })
             .then(res => res.json())
@@ -1004,6 +1012,34 @@
                 </div>
                 
                 <canvas id="crop-canvas" class="crop-canvas"></canvas>
+                
+                <!-- Дополнительные параметры профиля -->
+                <div style="margin-top: 20px; padding: 20px; background: #f8fafc; border-radius: 8px;">
+                    <h3 style="margin-bottom: 15px; color: #1f2937;">📋 Параметры профиля (необязательно)</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">
+                                Кол-во на подвес:
+                            </label>
+                            <input type="number" id="quantity-per-hanger" placeholder="30" 
+                                   style="width: 100%; padding: 8px; border: 2px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">
+                                Длина (мм):
+                            </label>
+                            <input type="number" id="profile-length" placeholder="6000" 
+                                   style="width: 100%; padding: 8px; border: 2px solid #cbd5e1; border-radius: 6px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563;">
+                            Примечание:
+                        </label>
+                        <textarea id="profile-notes" placeholder="Для окон, стандартный профиль..." rows="2"
+                                  style="width: 100%; padding: 8px; border: 2px solid #cbd5e1; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+                    </div>
+                </div>
                 
                 <div class="action-buttons">
                     <button class="btn-upload" onclick="uploadPhoto()">✅ Загрузить фото</button>

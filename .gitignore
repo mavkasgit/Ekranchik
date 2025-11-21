@@ -44,3 +44,6 @@ Thumbs.db
 # Static files (profile images)
 static/images/*
 !static/images/.gitkeep
+
+# Database
+profiles.db

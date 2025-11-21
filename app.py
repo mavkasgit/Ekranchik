@@ -12,6 +12,7 @@ import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from dotenv import load_dotenv
+import db
 
 # Загружаем переменные из .env файла
 load_dotenv()
@@ -806,12 +807,17 @@ def profiles_page():
 
 @app.route('/api/profiles/upload', methods=['POST'])
 def upload_profile_photo():
-    """Загрузка фото профиля с кропом - сохраняет 2 файла"""
+    """Загрузка фото профиля с кропом - сохраняет 2 файла + запись в БД"""
     try:
         data = request.get_json()
         profile_name = data.get('profile_name')
         image_data = data.get('image_data')  # base64
         crop_data = data.get('crop_data')  # {x, y, width, height}
+        
+        # Дополнительные параметры для БД
+        quantity_per_hanger = data.get('quantity_per_hanger')
+        length = data.get('length')
+        notes = data.get('notes', '').strip()
         
         if not profile_name or not image_data:
             return jsonify({'success': False, 'error': 'Не указано имя профиля или изображение'})
@@ -868,11 +874,27 @@ def upload_profile_photo():
         thumb_path = PROFILES_DIR / f"{clean_name}-thumb.jpg"
         img_thumb.save(thumb_path, 'JPEG', quality=85, optimize=True)
         
+        # Сохраняем в базу данных
+        url_full = f'/static/images/{clean_name}.jpg'
+        url_thumb = f'/static/images/{clean_name}-thumb.jpg'
+        
+        db.add_or_update_profile(
+            name=clean_name,
+            quantity_per_hanger=quantity_per_hanger,
+            length=length,
+            notes=notes,
+            photo_thumb=url_thumb,
+            photo_full=url_full
+        )
+        
+        # Обновляем кэш фото
+        scan_profile_photos()
+        
         return jsonify({
             'success': True,
             'message': f'Фото для профиля "{clean_name}" успешно загружено (2 файла)',
-            'url_full': f'/static/images/{clean_name}.jpg',
-            'url_thumb': f'/static/images/{clean_name}-thumb.jpg'
+            'url_full': url_full,
+            'url_thumb': url_thumb
         })
         
     except Exception as e:
@@ -882,6 +904,9 @@ if __name__ == '__main__':
     # Загружаем настройки из .env
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('DEBUG', 'True').lower() == 'true'
+    
+    # Инициализируем базу данных
+    db.init_database()
     
     # Сканируем фото профилей (один раз при старте)
     scan_profile_photos()
