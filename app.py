@@ -49,6 +49,56 @@ _cache = {'df': None, 'file_mtime': None, 'cache_time': None, 'force_reload': Tr
 profiles_dir = os.getenv('PROFILES_DIR', 'static/images')
 PROFILES_DIR = BASE_DIR / profiles_dir if not Path(profiles_dir).is_absolute() else Path(profiles_dir)
 
+# Кэш для списка фото (сканируем один раз при старте)
+_photos_cache = {}
+
+def scan_profile_photos():
+    """Сканирует папку с фото и создает словарь {профиль: (thumb_url, full_url)}"""
+    global _photos_cache
+    _photos_cache.clear()
+    
+    if not PROFILES_DIR.exists():
+        print(f"[WARN] Папка с фото не найдена: {PROFILES_DIR}")
+        return
+    
+    print(f"[SCAN] Сканирование фото профилей...")
+    thumb_count = 0
+    full_count = 0
+    
+    # Проходим по всем файлам в папке
+    for file_path in PROFILES_DIR.glob('*'):
+        if not file_path.is_file():
+            continue
+        
+        # Проверяем расширение
+        ext = file_path.suffix.lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+            continue
+        
+        filename = file_path.stem  # Имя без расширения
+        is_thumb = filename.endswith('-thumb')
+        
+        # Получаем имя профиля
+        profile_name = filename[:-6] if is_thumb else filename
+        
+        # Нормализуем имя (lowercase для проверки)
+        profile_key = profile_name.lower()
+        
+        # Инициализируем если еще нет
+        if profile_key not in _photos_cache:
+            _photos_cache[profile_key] = {'thumb': None, 'full': None, 'original_name': profile_name}
+        
+        # Сохраняем URL
+        url = f"/static/images/{file_path.name}"
+        if is_thumb:
+            _photos_cache[profile_key]['thumb'] = url
+            thumb_count += 1
+        else:
+            _photos_cache[profile_key]['full'] = url
+            full_count += 1
+    
+    print(f"[OK] Найдено профилей с фото: {len(_photos_cache)} ({thumb_count} превью, {full_count} полных)")
+
 # Watchdog для отслеживания изменений Excel файла
 class ExcelFileHandler(FileSystemEventHandler):
     def __init__(self):
@@ -89,8 +139,14 @@ def start_file_watcher():
         if EXCEL_DIR != BASE_DIR:
             print(f"   (сетевой диск - возможна задержка до 5 сек)")
 
-def get_dataframe():
-    """Читает Excel с кэшированием - последние 300 строк"""
+def get_dataframe(full_dataset=False):
+    """
+    Читает Excel с кэшированием
+    
+    Args:
+        full_dataset: если True - читает ВСЕ строки (для поиска фото),
+                     если False - последние 100 строк (для таблицы, быстро)
+    """
     from datetime import datetime, timedelta
     
     # Проверяем доступность директории (для сетевых дисков)
@@ -132,7 +188,11 @@ def get_dataframe():
     )
     
     if cache_valid:
-        return _cache['df'].copy()
+        # Возвращаем либо полный датасет, либо последние 100 строк
+        df_cached = _cache['df'].copy()
+        if not full_dataset and len(df_cached) > 100:
+            return df_cached.tail(100)
+        return df_cached
     
     # Сбрасываем флаг принудительной перезагрузки
     if force_reload:
@@ -148,9 +208,6 @@ def get_dataframe():
     
     print(f"[DEBUG] Прочитано всего строк: {len(df)}")
     
-    # Берем последние 100 строк для скорости
-    df = df.tail(100)
-    
     # Переименовываем колонки для удобства
     df.columns = ['date', 'number', 'time', 'material_type', 'kpz_number', 
                   'client', 'profile', 'color', 'lamels_qty']
@@ -158,7 +215,7 @@ def get_dataframe():
     # ВАЖНО: удаляем полностью пустые строки (где все ячейки пусты)
     df = df.dropna(how='all')
     
-    print(f"[DEBUG] После tail(100) и удаления пустых: {len(df)} строк")
+    print(f"[DEBUG] После удаления пустых: {len(df)} строк")
     
     # Сохраняем в кэш с временной меткой
     from datetime import datetime
@@ -168,53 +225,80 @@ def get_dataframe():
     
     if force_reload:
         timestamp = datetime.now().strftime('%H:%M:%S')
-        print(f"[OK] [{timestamp}] Загружено {len(df)} строк")
+        print(f"[OK] [{timestamp}] Загружено {len(df)} строк в кэш")
     
+    # Возвращаем либо полный датасет, либо последние 100 строк
+    if not full_dataset and len(df) > 100:
+        return df.tail(100).copy()
     return df.copy()
 
+def split_profiles(profile_string):
+    """
+    Разбивает строку с несколькими профилями на отдельные профили
+    Разделители: пробелы, +, запятые, точки с запятой
+    
+    Примеры:
+    "юп-1625  +  юп-3233 + юп-1875" → ["юп-1625", "юп-3233", "юп-1875"]
+    "корпус" → ["корпус"]
+    "1515  357  381  юп-009" → ["1515", "357", "381", "юп-009"]
+    """
+    if not profile_string or pd.isna(profile_string):
+        return []
+    
+    profile_str = str(profile_string).strip()
+    
+    # Разделители: +, запятая, точка с запятой, 2+ пробела
+    import re
+    # Заменяем разделители на |
+    profile_str = re.sub(r'\s*[+,;]\s*|\s{2,}', '|', profile_str)
+    
+    # Разбиваем по |
+    profiles = [p.strip() for p in profile_str.split('|') if p.strip()]
+    
+    # Фильтруем слишком короткие (меньше 2 символов)
+    profiles = [p for p in profiles if len(p) >= 2]
+    
+    return profiles
+
 def get_profile_photo(profile_name):
-    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url)"""
+    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url) из кэша"""
     if not profile_name or pd.isna(profile_name):
         return None, None
     
-    # Очищаем имя от пробелов и лишних символов
+    # Очищаем имя и приводим к lowercase для поиска
     clean_name = str(profile_name).strip()
+    profile_key = clean_name.lower()
     
-    # Поддерживаемые форматы
-    extensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+    # Проверяем кэш
+    if profile_key in _photos_cache:
+        photo_info = _photos_cache[profile_key]
+        return photo_info['thumb'], photo_info['full']
     
-    thumb_url = None
-    full_url = None
+    return None, None
+
+def check_profiles_have_photos(profile_string):
+    """
+    Проверяет есть ли фото хотя бы у ОДНОГО из профилей в строке
     
-    for ext in extensions:
-        # Проверяем превью (-thumb)
-        if not thumb_url:
-            thumb_variants = [
-                PROFILES_DIR / f"{clean_name}-thumb{ext}",
-                PROFILES_DIR / f"{clean_name.lower()}-thumb{ext}",
-                PROFILES_DIR / f"{clean_name.upper()}-thumb{ext}",
-            ]
-            for path in thumb_variants:
-                if path.exists():
-                    thumb_url = f"/static/images/{path.name}"
-                    break
+    Args:
+        profile_string: строка с одним или несколькими профилями
         
-        # Проверяем полное фото
-        if not full_url:
-            full_variants = [
-                PROFILES_DIR / f"{clean_name}{ext}",
-                PROFILES_DIR / f"{clean_name.lower()}{ext}",
-                PROFILES_DIR / f"{clean_name.upper()}{ext}",
-            ]
-            for path in full_variants:
-                if path.exists():
-                    full_url = f"/static/images/{path.name}"
-                    break
-        
-        if thumb_url and full_url:
-            break
+    Returns:
+        bool: True если хотя бы у одного профиля есть фото
+    """
+    if not profile_string or pd.isna(profile_string):
+        return False
     
-    return thumb_url, full_url
+    # Разбиваем на отдельные профили
+    profiles = split_profiles(profile_string)
+    
+    # Проверяем каждый профиль
+    for profile in profiles:
+        thumb_url, full_url = get_profile_photo(profile)
+        if thumb_url or full_url:
+            return True  # Хотя бы у одного есть фото
+    
+    return False  # Ни у одного нет фото
 
 def get_profiles_without_photos():
     """Возвращает список уникальных профилей без фото"""
@@ -236,6 +320,100 @@ def get_profiles_without_photos():
             missing.append({'profile': profile, 'count': count})
     
     return sorted(missing, key=lambda x: x['count'], reverse=True)
+
+def get_recent_profiles(limit=50):
+    """Возвращает последние записи с заполненным полем 'Профиль'"""
+    df = get_dataframe()
+    if df is None:
+        return []
+    
+    # Фильтруем только строки с заполненным профилем
+    df_with_profiles = df[pd.notna(df['profile']) & (df['profile'].astype(str).str.strip() != '')]
+    
+    # Сохраняем оригинальный индекс для правильной сортировки
+    # Индекс = номер строки в Excel, поэтому последние строки = максимальный индекс
+    df_with_profiles = df_with_profiles.sort_index(ascending=False)
+    
+    # Берем последние N записей
+    recent = df_with_profiles.head(limit)
+    
+    # Формируем результат с проверкой наличия фото
+    result = []
+    for idx, row in recent.iterrows():
+        profile_name = str(row['profile']).strip()
+        # Проверяем есть ли фото хотя бы у одного из профилей в строке
+        has_photo = check_profiles_have_photos(profile_name)
+        
+        result.append({
+            'profile': profile_name,
+            'date': row['date'].strftime('%d.%m.%Y') if pd.notna(row['date']) else '—',
+            'number': row['number'] if pd.notna(row['number']) else '—',
+            'has_photo': has_photo,
+            'row_number': int(idx) + 2  # +2 потому что индекс с 0 + заголовок в Excel
+        })
+    
+    return result
+
+def get_recent_missing_profiles(limit=20, offset=0):
+    """
+    Возвращает топ N уникальных профилей БЕЗ фото (по последней строке) с пагинацией
+    Просматривает ВСЕ строки файла без ограничений!
+    
+    Args:
+        limit: сколько профилей вернуть (по умолчанию 20)
+        offset: сколько профилей пропустить (для пагинации, по умолчанию 0)
+    
+    Returns:
+        dict: {'profiles': [...], 'total': N, 'has_more': bool}
+    """
+    # ВАЖНО: full_dataset=True чтобы читать ВСЕ строки для поиска фото!
+    df = get_dataframe(full_dataset=True)
+    if df is None:
+        return {'profiles': [], 'total': 0, 'has_more': False}
+    
+    # Фильтруем только строки с заполненным профилем
+    df_with_profiles = df[pd.notna(df['profile']) & (df['profile'].astype(str).str.strip() != '')]
+    
+    # Сортируем по индексу (последние строки сверху)
+    df_with_profiles = df_with_profiles.sort_index(ascending=False)
+    
+    # БЕЗ ОГРАНИЧЕНИЙ - просматриваем ВСЕ строки!
+    
+    # Собираем ВСЕ уникальные профили без фото (для подсчета total и пагинации)
+    all_missing = []
+    seen_profiles = set()
+    
+    for idx, row in df_with_profiles.iterrows():
+        profile_name = str(row['profile']).strip()
+        
+        # Пропускаем, если этот профиль уже был добавлен
+        if profile_name in seen_profiles:
+            continue
+        
+        # Проверяем наличие фото хотя бы у одного из профилей (быстрая проверка по кэшу)
+        has_photo = check_profiles_have_photos(profile_name)
+        
+        # Только профили БЕЗ фото
+        if not has_photo:
+            all_missing.append({
+                'profile': profile_name,
+                'date': row['date'].strftime('%d.%m.%Y') if pd.notna(row['date']) else '—',
+                'number': row['number'] if pd.notna(row['number']) else '—',
+                'has_photo': False,
+                'row_number': int(idx) + 2  # +2 для Excel (индекс с 0 + заголовок)
+            })
+            seen_profiles.add(profile_name)
+    
+    # Применяем пагинацию
+    total = len(all_missing)
+    paginated = all_missing[offset:offset + limit]
+    has_more = (offset + limit) < total
+    
+    return {
+        'profiles': paginated,
+        'total': total,
+        'has_more': has_more
+    }
 
 def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, loading_limit=None, unloading_limit=None):
     """Читает Excel с фильтрами"""
@@ -388,13 +566,144 @@ def api_products():
 
 @app.route('/api/profiles/missing')
 def api_missing_profiles():
-    """API для получения списка профилей без фото"""
-    missing = get_profiles_without_photos()
+    """API для получения списка профилей (без фото, недавние, или недавние без фото) с пагинацией"""
+    sort_by = request.args.get('sort_by', default='missing')  # missing, recent, или recent_missing
+    limit = request.args.get('limit', default=20, type=int)
+    offset = request.args.get('offset', default=0, type=int)
+    
+    if sort_by == 'recent':
+        profiles = get_recent_profiles(limit=limit)
+        return jsonify({
+            'success': True,
+            'total': len(profiles),
+            'profiles': profiles,
+            'sort_by': 'recent',
+            'has_more': False
+        })
+    elif sort_by == 'recent_missing':
+        # Для этого режима просматриваем ВЕСЬ файл, возвращаем с пагинацией
+        result = get_recent_missing_profiles(limit=limit, offset=offset)
+        return jsonify({
+            'success': True,
+            'total': result['total'],
+            'profiles': result['profiles'],
+            'has_more': result['has_more'],
+            'sort_by': 'recent_missing',
+            'offset': offset,
+            'limit': limit
+        })
+    else:
+        missing = get_profiles_without_photos()
+        return jsonify({
+            'success': True,
+            'total': len(missing),
+            'profiles': missing,
+            'sort_by': 'missing',
+            'has_more': False
+        })
+
+@app.route('/api/profiles/search-duplicates')
+def api_search_duplicates():
+    """Поиск профилей похожих на запрос (fuzzy matching)"""
+    query = request.args.get('query', '').strip().lower()
+    
+    if not query:
+        return jsonify({
+            'success': False,
+            'error': 'Не указан запрос для поиска'
+        })
+    
+    # Получаем ВСЕ строки для поиска
+    df = get_dataframe(full_dataset=True)
+    if df is None:
+        return jsonify({
+            'success': False,
+            'error': 'Не удалось загрузить данные'
+        })
+    
+    # Фильтруем только строки с заполненным профилем
+    df_with_profiles = df[pd.notna(df['profile']) & (df['profile'].astype(str).str.strip() != '')]
+    
+    # Ищем похожие профили
+    matches = []
+    seen_profiles = {}  # {profile_name: (row_idx, similarity)}
+    
+    for idx, row in df_with_profiles.iterrows():
+        profile_name = str(row['profile']).strip()
+        profile_lower = profile_name.lower()
+        
+        # Вычисляем процент совпадения
+        similarity = calculate_similarity(query, profile_lower)
+        
+        # Порог совпадения >= 30%
+        if similarity >= 30:
+            # Берем самую свежую строку для каждого профиля
+            if profile_name not in seen_profiles or idx > seen_profiles[profile_name][0]:
+                seen_profiles[profile_name] = (idx, similarity)
+    
+    # Формируем результаты
+    for profile_name, (idx, similarity) in seen_profiles.items():
+        row = df_with_profiles.loc[idx]
+        thumb_url, full_url = get_profile_photo(profile_name)
+        has_photo = bool(thumb_url or full_url)
+        
+        # Подсчитываем сколько раз этот профиль встречается в файле
+        count = len(df_with_profiles[df_with_profiles['profile'].astype(str).str.strip() == profile_name])
+        
+        matches.append({
+            'profile': profile_name,
+            'date': row['date'].strftime('%d.%m.%Y') if pd.notna(row['date']) else '—',
+            'number': row['number'] if pd.notna(row['number']) else '—',
+            'has_photo': has_photo,
+            'row_number': int(idx) + 2,
+            'similarity': int(similarity),
+            'count': count
+        })
+    
+    # Сортируем по совпадению (от большего к меньшему), при одинаковом совпадении - по частоте
+    matches.sort(key=lambda x: (x['similarity'], x['count']), reverse=True)
+    
     return jsonify({
         'success': True,
-        'total': len(missing),
-        'profiles': missing
+        'total': len(matches),
+        'profiles': matches,
+        'query': query
     })
+
+def calculate_similarity(query, text):
+    """Вычисляет процент совпадения между запросом и текстом"""
+    from difflib import SequenceMatcher
+    
+    # 1. Точное совпадение = 100%
+    if query == text:
+        return 100
+    
+    # 2. Один полностью содержит другой как подстроку
+    if query in text:
+        # Чем ближе длины, тем выше совпадение
+        length_ratio = len(query) / len(text)
+        return int(70 + length_ratio * 30)  # 70-100%
+    
+    if text in query:
+        length_ratio = len(text) / len(query)
+        return int(60 + length_ratio * 30)  # 60-90%
+    
+    # 3. Используем SequenceMatcher для точного сравнения последовательностей
+    matcher = SequenceMatcher(None, query, text)
+    sequence_similarity = matcher.ratio() * 100
+    
+    # 4. Разбиваем на слова/токены и ищем совпадения
+    query_words = set(query.replace('-', ' ').replace('_', ' ').split())
+    text_words = set(text.replace('-', ' ').replace('_', ' ').split())
+    
+    if query_words and text_words:
+        common_words = query_words & text_words
+        word_similarity = (len(common_words) / len(query_words)) * 100
+    else:
+        word_similarity = 0
+    
+    # Итоговое совпадение = максимум из двух методов
+    return max(sequence_similarity, word_similarity)
 
 @app.route('/api/file/status')
 def api_file_status():
@@ -573,6 +882,9 @@ if __name__ == '__main__':
     # Загружаем настройки из .env
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('DEBUG', 'True').lower() == 'true'
+    
+    # Сканируем фото профилей (один раз при старте)
+    scan_profile_photos()
     
     # Запускаем файловый мониторинг
     start_file_watcher()

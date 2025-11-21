@@ -371,29 +371,33 @@
         
         /* Фото профилей */
         .profile-photo {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
+            max-width: 120px;
+            max-height: 80px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
             border-radius: 6px;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
             border: 2px solid #e5e7eb;
+            display: block;
         }
         
         .profile-photo:hover {
-            transform: scale(1.1);
+            transform: scale(1.05);
             border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
         }
         
         .no-photo {
-            width: 60px;
-            height: 60px;
+            width: 80px;
+            height: 80px;
             background: #f3f4f6;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 32px;
             color: #9ca3af;
         }
         
@@ -547,6 +551,37 @@
     <script>
         let autoRefreshInterval;
         
+        // Загрузка фильтров из localStorage при старте
+        function loadFiltersFromStorage() {
+            const saved = localStorage.getItem('ekranchik_filters');
+            if (saved) {
+                try {
+                    const filters = JSON.parse(saved);
+                    document.getElementById('limit').value = filters.limit || 100;
+                    document.getElementById('loading-limit').value = filters.loadingLimit || 10;
+                    document.getElementById('unloading-limit').value = filters.unloadingLimit || 10;
+                    document.getElementById('no-time-filter').checked = filters.noTimeFilter || false;
+                    document.getElementById('unload-filter').checked = filters.unloadFilter || false;
+                    console.log('✅ Фильтры восстановлены из localStorage');
+                } catch (e) {
+                    console.warn('⚠️ Ошибка загрузки фильтров:', e);
+                }
+            }
+        }
+        
+        // Сохранение фильтров в localStorage
+        function saveFiltersToStorage() {
+            const filters = {
+                limit: document.getElementById('limit').value,
+                loadingLimit: document.getElementById('loading-limit').value,
+                unloadingLimit: document.getElementById('unloading-limit').value,
+                noTimeFilter: document.getElementById('no-time-filter').checked,
+                unloadFilter: document.getElementById('unload-filter').checked
+            };
+            localStorage.setItem('ekranchik_filters', JSON.stringify(filters));
+            console.log('💾 Фильтры сохранены в localStorage');
+        }
+        
         function loadProducts(showSpinner = false) {
             // Показываем загрузку только если это ручной клик
             const overlay = document.getElementById('loading-overlay');
@@ -575,8 +610,9 @@
                 if (unloadingLimit) params.append('unloading_limit', unloadingLimit);
             }
             
-            // Сохраняем параметры для автообновления
+            // Сохраняем параметры для автообновления И в localStorage
             savedFilters = params.toString();
+            saveFiltersToStorage();
             
             fetch(`/api/products?${params}`)
                 .then(res => res.json())
@@ -681,6 +717,7 @@
             document.getElementById('unloading-limit').value = '10';
             document.getElementById('no-time-filter').checked = false;
             document.getElementById('unload-filter').checked = false;
+            saveFiltersToStorage(); // Сохраняем сброшенные значения
             loadProducts(true);
         }
         
@@ -841,8 +878,30 @@
         }
         
         function toggleFullscreen() {
-            document.body.classList.toggle('fullscreen');
+            if (!document.fullscreenElement) {
+                // Включаем fullscreen
+                document.documentElement.requestFullscreen().then(() => {
+                    document.body.classList.add('fullscreen');
+                    console.log('🖥️ Полноэкранный режим включен');
+                }).catch(err => {
+                    console.error('⚠️ Ошибка включения fullscreen:', err);
+                    alert('Не удалось включить полноэкранный режим');
+                });
+            } else {
+                // Выключаем fullscreen
+                document.exitFullscreen().then(() => {
+                    document.body.classList.remove('fullscreen');
+                    console.log('🖥️ Полноэкранный режим выключен');
+                });
+            }
         }
+        
+        // Отслеживаем выход из fullscreen (например, по ESC)
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('fullscreen');
+            }
+        });
         
         function openPhotoModal(photoUrl, profileName) {
             const modal = document.getElementById('photo-modal');
@@ -902,6 +961,7 @@
         }
         
         // Загрузка при старте
+        loadFiltersFromStorage(); // Восстанавливаем фильтры из localStorage
         loadProducts(false);
         startAutoRefresh();
         checkFileStatus();
@@ -915,6 +975,14 @@
         document.querySelectorAll('input, select').forEach(el => {
             el.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') loadProducts();
+            });
+        });
+        
+        // Автосохранение фильтров при изменении
+        ['limit', 'loading-limit', 'unloading-limit', 'no-time-filter', 'unload-filter'].forEach(id => {
+            const element = document.getElementById(id);
+            element.addEventListener('change', () => {
+                saveFiltersToStorage();
             });
         });
     </script>

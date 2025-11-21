@@ -83,12 +83,15 @@
         }
         
         .btn-primary {
-            background: #2563eb;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            border: none;
         }
         
         .btn-primary:hover {
-            background: #1d4ed8;
+            background: linear-gradient(135deg, #5568d3 0%, #653a91 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         
         .btn-secondary {
@@ -98,6 +101,34 @@
         
         .btn-secondary:hover {
             background: #4b5563;
+        }
+        
+        .btn-active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+            color: white !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4), 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+            font-weight: 600 !important;
+            transform: scale(1.05) !important;
+        }
+        
+        .photo-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .photo-status.has-photo {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .photo-status.no-photo {
+            background: #fee2e2;
+            color: #991b1b;
         }
         
         table {
@@ -363,11 +394,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📷 Профили без фото</h1>
-            <p class="subtitle">Список профилей, для которых отсутствуют изображения</p>
+            <h1 id="page-title">📷 Профили без фото</h1>
+            <p class="subtitle" id="page-subtitle">Список профилей, для которых отсутствуют изображения</p>
             <div class="stats">
                 <div class="stat">
-                    📦 Всего профилей без фото: <strong id="total-missing">—</strong>
+                    <span id="stat-label">📦 Всего профилей:</span> <strong id="total-missing">—</strong>
                 </div>
                 <div class="stat">
                     📁 Путь: <strong>static/images/</strong>
@@ -377,12 +408,34 @@
         
         <div class="content">
             <div class="buttons">
-                <button class="btn-primary" onclick="loadMissingProfiles()">🔄 Обновить</button>
+                <button class="btn-primary btn-active" id="btn-recent" onclick="switchMode('recent')">🕒 Недавние</button>
+                <button class="btn-primary" id="btn-recent-missing" onclick="switchMode('recent_missing')">⚡ Недавние без фото</button>
+                <button class="btn-secondary" onclick="loadMissingProfiles()">🔄 Обновить</button>
                 <button class="btn-secondary" onclick="window.location.href='/'">← Назад к таблице</button>
             </div>
             
+            <div class="info-box" style="background: #e0f2fe; border-color: #0284c7;">
+                <strong>🔍 Поиск дубликатов:</strong>
+                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
+                    <div style="width: 50%; position: relative;">
+                        <input type="text" id="search-duplicates" placeholder="Введите примерное название профиля..." 
+                               style="width: 100%; padding: 10px; border: 2px solid #0284c7; border-radius: 6px; font-size: 14px;"
+                               onkeypress="if(event.key === 'Enter') searchDuplicates()">
+                    </div>
+                    <button class="btn-primary" onclick="searchDuplicates()" style="padding: 10px 20px;">
+                        🔎 Найти похожие
+                    </button>
+                    <button onclick="clearSearch()" 
+                            class="btn-secondary"
+                            style="padding: 10px 16px; display: none;"
+                            id="clear-search-btn">
+                        ✕ Очистить
+                    </button>
+                </div>
+            </div>
+            
             <table>
-                <thead>
+                <thead id="table-header">
                     <tr>
                         <th style="width: 50px">#</th>
                         <th>Название профиля</th>
@@ -399,12 +452,85 @@
                     </tr>
                 </tbody>
             </table>
+            
+            <div id="load-more-container" style="text-align: center; margin-top: 20px; display: none;">
+                <button class="btn-secondary" onclick="loadMissingProfiles(true)" style="padding: 12px 30px;">
+                    ⬇️ Загрузить еще 20
+                </button>
+            </div>
         </div>
     </div>
     
     <script>
-        function loadMissingProfiles() {
-            fetch('/api/profiles/missing')
+        // Восстанавливаем режим из localStorage или используем дефолт
+        let currentMode = localStorage.getItem('profilesMode') || 'recent';
+        let currentOffset = 0;
+        let hasMore = false;
+        const LIMIT = 20;
+        
+        function switchMode(mode) {
+            currentMode = mode;
+            currentOffset = 0;  // Сбрасываем пагинацию при смене режима
+            
+            // Сохраняем режим в localStorage
+            localStorage.setItem('profilesMode', mode);
+            
+            // Обновляем активную кнопку
+            updateActiveButton();
+            
+            // Обновляем заголовок таблицы СРАЗУ
+            const header = document.getElementById('table-header');
+            if (mode === 'recent') {
+                document.getElementById('page-title').textContent = '🕒 Недавние профили';
+                document.getElementById('page-subtitle').textContent = 'Последние 50 записей с заполненным полем "Профиль"';
+                document.getElementById('stat-label').textContent = '📦 Всего записей:';
+                
+                header.innerHTML = `
+                    <tr>
+                        <th style="width: 80px">Строка Excel</th>
+                        <th>Название профиля</th>
+                        <th style="width: 120px">Дата</th>
+                        <th style="width: 100px">№ Подвеса</th>
+                        <th style="width: 120px">Статус фото</th>
+                        <th style="width: 120px">Действия</th>
+                    </tr>
+                `;
+            } else if (mode === 'recent_missing') {
+                document.getElementById('page-title').textContent = '⚡ Недавние без фото';
+                document.getElementById('page-subtitle').textContent = 'Самые недавние уникальные профили без фото (просмотр ВСЕГО файла)';
+                document.getElementById('stat-label').textContent = '📦 Всего профилей:';
+                
+                header.innerHTML = `
+                    <tr>
+                        <th style="width: 80px">Строка Excel</th>
+                        <th>Название профиля</th>
+                        <th style="width: 120px">Дата</th>
+                        <th style="width: 100px">№ Подвеса</th>
+                        <th style="width: 120px">Действия</th>
+                    </tr>
+                `;
+            }
+            
+            // Загружаем данные (с индикацией загрузки внутри)
+            loadMissingProfiles();
+        }
+        
+        function loadMissingProfiles(loadMore = false) {
+            // Если не loadMore - сбрасываем offset
+            if (!loadMore) {
+                currentOffset = 0;
+            }
+            
+            const url = `/api/profiles/missing?sort_by=${currentMode}&limit=${LIMIT}&offset=${currentOffset}`;
+            const tbody = document.getElementById('profiles-table');
+            
+            // Показываем индикатор загрузки ТОЛЬКО если не loadMore
+            if (!loadMore) {
+                const colspan = (currentMode === 'recent') ? 6 : 5;
+                tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading"><div class="spinner"></div> Загрузка...</td></tr>`;
+            }
+            
+            fetch(url)
                 .then(res => res.json())
                 .then(data => {
                     if (!data.success) {
@@ -412,37 +538,193 @@
                         return;
                     }
                     
+                    // Обновляем состояние пагинации
+                    hasMore = data.has_more || false;
+                    currentOffset += data.profiles.length;
+                    
                     document.getElementById('total-missing').textContent = data.total;
                     
-                    const tbody = document.getElementById('profiles-table');
-                    
-                    if (data.profiles.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="loading">✅ Все профили имеют фото!</td></tr>';
+                    if (data.profiles.length === 0 && !loadMore) {
+                        const colspan = (currentMode === 'recent') ? 6 : 5;
+                        tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading">Нет данных</td></tr>`;
+                        updateLoadMoreButton();
                         return;
                     }
                     
-                    tbody.innerHTML = data.profiles.map((profile, index) => `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td class="profile-name">${profile.profile}</td>
-                            <td><span class="usage-count">${profile.count} раз</span></td>
-                            <td>
-                                <button class="upload-btn" onclick="openUploadModal('${profile.profile}')">
-                                    📤 Загрузить
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
+                    let html = '';
+                    
+                    if (currentMode === 'recent') {
+                        // Режим "Недавние" (все профили)
+                        html = data.profiles.map((profile, index) => `
+                            <tr>
+                                <td><strong style="color: #6b7280;">#${profile.row_number || (index + 1)}</strong></td>
+                                <td class="profile-name">${profile.profile}</td>
+                                <td>${profile.date}</td>
+                                <td><strong>${profile.number}</strong></td>
+                                <td>
+                                    <span class="photo-status ${profile.has_photo ? 'has-photo' : 'no-photo'}">
+                                        ${profile.has_photo ? '✅ Есть' : '❌ Нет'}
+                                    </span>
+                                </td>
+                                <td>
+                                    ${!profile.has_photo ? `
+                                        <button class="upload-btn" onclick="openUploadModal('${profile.profile}')">
+                                            📤 Загрузить
+                                        </button>
+                                    ` : '—'}
+                                </td>
+                            </tr>
+                        `).join('');
+                    } else if (currentMode === 'recent_missing') {
+                        // Режим "Недавние без фото" (уникальные)
+                        html = data.profiles.map((profile, index) => `
+                            <tr>
+                                <td><strong style="color: #6b7280;">#${profile.row_number || (index + 1)}</strong></td>
+                                <td class="profile-name">${profile.profile}</td>
+                                <td>${profile.date}</td>
+                                <td><strong>${profile.number}</strong></td>
+                                <td>
+                                    <button class="upload-btn" onclick="openUploadModal('${profile.profile}')">
+                                        📤 Загрузить
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                    
+                    // Обновляем таблицу (добавляем или заменяем)
+                    if (loadMore) {
+                        tbody.innerHTML += html;
+                    } else {
+                        tbody.innerHTML = html;
+                    }
+                    
+                    // Обновляем кнопку "Загрузить еще"
+                    updateLoadMoreButton();
                 })
                 .catch(err => {
                     console.error('Ошибка:', err);
-                    document.getElementById('profiles-table').innerHTML = 
-                        '<tr><td colspan="4" class="loading" style="color: red;">Ошибка загрузки данных</td></tr>';
+                    const colspan = (currentMode === 'recent') ? 6 : 5;
+                    tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading" style="color: red;">Ошибка загрузки данных</td></tr>`;
                 });
         }
         
-        // Загрузка при старте
-        loadMissingProfiles();
+        function searchDuplicates() {
+            const query = document.getElementById('search-duplicates').value.trim();
+            if (!query) {
+                alert('Введите название профиля для поиска');
+                return;
+            }
+            
+            const tbody = document.getElementById('profiles-table');
+            
+            // Показываем индикатор загрузки
+            tbody.innerHTML = '<tr><td colspan="5" class="loading"><div class="spinner"></div> Поиск похожих профилей...</td></tr>';
+            
+            // Обновляем заголовок
+            document.getElementById('page-title').textContent = '🔍 Результаты поиска дубликатов';
+            document.getElementById('page-subtitle').textContent = `Поиск профилей похожих на: "${query}"`;
+            
+            // ВАЖНО: Сохраняем подсветку текущего режима
+            updateActiveButton();
+            
+            // Запускаем поиск
+            fetch(`/api/profiles/search-duplicates?query=${encodeURIComponent(query)}`)
+                .then(res => res.json())
+                .then(data => {
+                    
+                    if (!data.success) {
+                        alert('Ошибка поиска');
+                        return;
+                    }
+                    
+                    document.getElementById('total-missing').textContent = data.total;
+                    
+                    if (data.profiles.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="loading">Ничего не найдено</td></tr>';
+                        return;
+                    }
+                    
+                    // Показываем результаты ОДНИМ разом (без мигания)
+                    tbody.innerHTML = data.profiles.map((profile, index) => `
+                        <tr>
+                            <td><strong style="color: #6b7280;">#${profile.row_number || (index + 1)}</strong></td>
+                            <td class="profile-name">
+                                ${profile.profile}
+                                <br><small style="color: #10b981; font-weight: bold;">Совпадение: ${profile.similarity}%</small>
+                                <br><small style="color: #6366f1; font-weight: bold;">Частота: ${profile.count} раз</small>
+                            </td>
+                            <td>${profile.date}</td>
+                            <td><strong>${profile.number}</strong></td>
+                            <td>
+                                ${!profile.has_photo ? `
+                                    <button class="upload-btn" onclick="openUploadModal('${profile.profile}')">
+                                        📤 Загрузить
+                                    </button>
+                                ` : '<span style="color: #10b981;">✅ Есть фото</span>'}
+                            </td>
+                        </tr>
+                    `).join('');
+                    
+                    // Скрываем кнопку "Загрузить еще"
+                    document.getElementById('load-more-container').style.display = 'none';
+                })
+                .catch(err => {
+                    console.error('Ошибка:', err);
+                    tbody.innerHTML = '<tr><td colspan="5" class="loading" style="color: red;">Ошибка поиска</td></tr>';
+                });
+        }
+        
+        function updateActiveButton() {
+            // Обновляем подсветку кнопок - ТОЛЬКО ОДНА должна быть активной
+            const btnRecent = document.getElementById('btn-recent');
+            const btnRecentMissing = document.getElementById('btn-recent-missing');
+            
+            if (currentMode === 'recent') {
+                btnRecent.classList.add('btn-active');
+                btnRecentMissing.classList.remove('btn-active');
+            } else if (currentMode === 'recent_missing') {
+                btnRecent.classList.remove('btn-active');
+                btnRecentMissing.classList.add('btn-active');
+            }
+        }
+        
+        function clearSearch() {
+            // Очищаем поле поиска
+            const input = document.getElementById('search-duplicates');
+            input.value = '';
+            input.focus();
+            
+            // Скрываем кнопку очистки
+            document.getElementById('clear-search-btn').style.display = 'none';
+            
+            // Возвращаемся к текущему режиму
+            updateActiveButton();  // Восстанавливаем подсветку кнопки
+            loadMissingProfiles();
+        }
+        
+        // Показываем/скрываем кнопку очистки при вводе
+        document.addEventListener('DOMContentLoaded', function() {
+            const input = document.getElementById('search-duplicates');
+            const clearBtn = document.getElementById('clear-search-btn');
+            
+            input.addEventListener('input', function() {
+                clearBtn.style.display = this.value ? 'block' : 'none';
+            });
+        });
+        
+        function updateLoadMoreButton() {
+            const container = document.getElementById('load-more-container');
+            // Показываем кнопку только для режима recent_missing и если есть еще данные
+            if (currentMode === 'recent_missing' && hasMore) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+        
+        // Загрузка при старте - применяем сохраненный режим
+        switchMode(currentMode);
         
         // === UPLOAD MODAL ===
         let currentProfile = null;

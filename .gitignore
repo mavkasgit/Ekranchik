@@ -40,3 +40,7 @@ Thumbs.db
 
 # Factory
 .factory/
+
+# Static files (profile images)
+static/images/*
+!static/images/.gitkeep
