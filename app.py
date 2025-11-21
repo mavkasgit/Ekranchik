@@ -920,8 +920,10 @@ def upload_profile_photo():
                 background = Image.new('RGB', image.size, (255, 255, 255))
                 if image.mode == 'P':
                     image = image.convert('RGBA')
-                background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
                 return background
+            elif image.mode != 'RGB':
+                return image.convert('RGB')
             return image
         
         clean_name = profile_name.strip()
@@ -953,6 +955,13 @@ def upload_profile_photo():
                 print(f"[UPLOAD] WARNING: Неверные размеры кропа, используем оригинал")
         
         img_thumb = convert_to_rgb(img_thumb)
+        
+        # Поворачиваем превью если нужно (ТОЛЬКО превью, полное фото не трогаем!)
+        rotation = data.get('rotation', 0)
+        if rotation != 0:
+            # PIL использует поворот против часовой стрелки, нам нужно по часовой
+            img_thumb = img_thumb.rotate(-rotation, expand=True)
+            print(f"[UPLOAD] Превью повернуто на {rotation}°")
         
         # Resize до 300px (для превью) - сохраняем пропорции
         max_size_thumb = 300

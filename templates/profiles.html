@@ -840,11 +840,28 @@
         let currentImage = null;
         let cropData = { x: 0, y: 0, width: 0, height: 0 };
         let canvas, ctx;
-        let cropMode = 'none'; // 'none', 'move', 'resize-tl', 'resize-tr', 'resize-bl', 'resize-br'
-        let dragStartX = 0;
-        let dragStartY = 0;
+        let isDragging = false;
+        let isMoving = false;
+        let startX = 0;
+        let startY = 0;
         let initialCropData = null;
         let dropZone;
+        
+        // Применение поворота к превью
+        function applyPreviewFilters() {
+            const preview = document.getElementById('preview-canvas');
+            if (!preview) return;
+            
+            const rotation = parseFloat(document.getElementById('rotation-slider-upload').value);
+            preview.style.transform = `rotate(${rotation}deg)`;
+        }
+        
+        // Быстрая установка поворота
+        function setRotation(degrees) {
+            document.getElementById('rotation-slider-upload').value = degrees;
+            document.getElementById('rotation-value-upload').textContent = degrees + '°';
+            applyPreviewFilters();
+        }
         
         // Инициализация после загрузки DOM
         window.addEventListener('DOMContentLoaded', () => {
@@ -954,116 +971,65 @@
             initCropHandlers();
         }
         
-        // Crop handlers - новая версия с drag & resize
+        // Простое рисование + перетаскивание
         function initCropHandlers() {
-            canvas.addEventListener('mousedown', handleCropMouseDown);
-            document.addEventListener('mousemove', handleCropMouseMove);
-            document.addEventListener('mouseup', handleCropMouseUp);
-        }
-        
-        function getCursorMode(mouseX, mouseY) {
-            const handleSize = 10;
-            
-            // Проверяем углы
-            if (Math.abs(mouseX - cropData.x) < handleSize && Math.abs(mouseY - cropData.y) < handleSize) {
-                return 'resize-tl';
-            }
-            if (Math.abs(mouseX - (cropData.x + cropData.width)) < handleSize && Math.abs(mouseY - cropData.y) < handleSize) {
-                return 'resize-tr';
-            }
-            if (Math.abs(mouseX - cropData.x) < handleSize && Math.abs(mouseY - (cropData.y + cropData.height)) < handleSize) {
-                return 'resize-bl';
-            }
-            if (Math.abs(mouseX - (cropData.x + cropData.width)) < handleSize && Math.abs(mouseY - (cropData.y + cropData.height)) < handleSize) {
-                return 'resize-br';
-            }
-            
-            // Проверяем внутри рамки
-            if (mouseX >= cropData.x && mouseX <= cropData.x + cropData.width &&
-                mouseY >= cropData.y && mouseY <= cropData.y + cropData.height) {
-                return 'move';
-            }
-            
-            return 'none';
-        }
-        
-        function getCursorStyle(mode) {
-            const cursors = {
-                'none': 'crosshair',
-                'move': 'move',
-                'resize-tl': 'nwse-resize',
-                'resize-tr': 'nesw-resize',
-                'resize-bl': 'nesw-resize',
-                'resize-br': 'nwse-resize'
-            };
-            return cursors[mode] || 'default';
-        }
-        
-        function updateCursor() {
-            canvas.style.cursor = getCursorStyle(cropMode);
-        }
-        
-        function handleCropMouseDown(e) {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            
-            cropMode = getCursorMode(mouseX, mouseY);
-            
-            if (cropMode !== 'none') {
-                dragStartX = mouseX;
-                dragStartY = mouseY;
-                initialCropData = { ...cropData };
-                updateCursor();
-            }
-        }
-        
-        function handleCropMouseMove(e) {
-            if (!canvas) return;
-            
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            
-            if (cropMode === 'none') {
-                const mode = getCursorMode(mouseX, mouseY);
-                canvas.style.cursor = getCursorStyle(mode);
-                return;
-            }
-            
-            const dx = mouseX - dragStartX;
-            const dy = mouseY - dragStartY;
-            
-            if (cropMode === 'move') {
-                cropData.x = Math.max(0, Math.min(canvas.width - cropData.width, initialCropData.x + dx));
-                cropData.y = Math.max(0, Math.min(canvas.height - cropData.height, initialCropData.y + dy));
-            } else if (cropMode.startsWith('resize-')) {
-                if (cropMode === 'resize-tl') {
-                    cropData.x = Math.max(0, Math.min(initialCropData.x + initialCropData.width - 20, initialCropData.x + dx));
-                    cropData.y = Math.max(0, Math.min(initialCropData.y + initialCropData.height - 20, initialCropData.y + dy));
-                    cropData.width = initialCropData.width - (cropData.x - initialCropData.x);
-                    cropData.height = initialCropData.height - (cropData.y - initialCropData.y);
-                } else if (cropMode === 'resize-tr') {
-                    cropData.y = Math.max(0, Math.min(initialCropData.y + initialCropData.height - 20, initialCropData.y + dy));
-                    cropData.width = Math.max(20, Math.min(canvas.width - cropData.x, initialCropData.width + dx));
-                    cropData.height = initialCropData.height - (cropData.y - initialCropData.y);
-                } else if (cropMode === 'resize-bl') {
-                    cropData.x = Math.max(0, Math.min(initialCropData.x + initialCropData.width - 20, initialCropData.x + dx));
-                    cropData.width = initialCropData.width - (cropData.x - initialCropData.x);
-                    cropData.height = Math.max(20, Math.min(canvas.height - cropData.y, initialCropData.height + dy));
-                } else if (cropMode === 'resize-br') {
-                    cropData.width = Math.max(20, Math.min(canvas.width - cropData.x, initialCropData.width + dx));
-                    cropData.height = Math.max(20, Math.min(canvas.height - cropData.y, initialCropData.height + dy));
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                // ИСПРАВЛЕНИЕ СДВИГА: учитываем масштаб canvas
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = (e.clientX - rect.left) * scaleX;
+                const mouseY = (e.clientY - rect.top) * scaleY;
+                
+                // Проверяем клик внутри рамки (для перетаскивания)
+                if (mouseX >= cropData.x && mouseX <= cropData.x + cropData.width &&
+                    mouseY >= cropData.y && mouseY <= cropData.y + cropData.height) {
+                    isMoving = true;
+                    startX = mouseX;
+                    startY = mouseY;
+                    initialCropData = { ...cropData };
+                    canvas.style.cursor = 'move';
+                } else {
+                    // Новое выделение
+                    isDragging = true;
+                    startX = mouseX;
+                    startY = mouseY;
+                    canvas.style.cursor = 'crosshair';
                 }
-            }
+            });
             
-            drawCropBox();
-            updatePreview();
-        }
-        
-        function handleCropMouseUp() {
-            cropMode = 'none';
-            canvas.style.cursor = 'move';
+            document.addEventListener('mousemove', (e) => {
+                if (!canvas || (!isDragging && !isMoving)) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const mouseX = (e.clientX - rect.left) * scaleX;
+                const mouseY = (e.clientY - rect.top) * scaleY;
+                
+                if (isMoving) {
+                    // Перетаскивание рамки
+                    const dx = mouseX - startX;
+                    const dy = mouseY - startY;
+                    cropData.x = Math.max(0, Math.min(canvas.width - cropData.width, initialCropData.x + dx));
+                    cropData.y = Math.max(0, Math.min(canvas.height - cropData.height, initialCropData.y + dy));
+                } else if (isDragging) {
+                    // Рисование новой рамки
+                    cropData.x = Math.min(startX, mouseX);
+                    cropData.y = Math.min(startY, mouseY);
+                    cropData.width = Math.abs(mouseX - startX);
+                    cropData.height = Math.abs(mouseY - startY);
+                }
+                
+                drawCropBox();
+                updatePreview();
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                isMoving = false;
+                canvas.style.cursor = 'default';
+            });
         }
             
             // Paste из буфера обмена
@@ -1084,35 +1050,27 @@
         function drawCropBox() {
             if (!ctx || !currentImage) return;
             
-            // Перерисовываем изображение
+            // 1. Очищаем и рисуем полное изображение
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
             
-            // Затемняем все кроме выделенной области
+            // 2. Затемняем всё кроме выделенной области (используя композит)
+            ctx.save();
+            
+            // Затемняем весь canvas
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Очищаем выделенную область
-            ctx.clearRect(cropData.x, cropData.y, cropData.width, cropData.height);
-            ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
+            // Используем 'destination-out' чтобы вырезать выделенную область из затемнения
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillRect(cropData.x, cropData.y, cropData.width, cropData.height);
             
-            // Рисуем рамку
+            ctx.restore();
+            
+            // 3. Рисуем рамку
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
             ctx.strokeRect(cropData.x, cropData.y, cropData.width, cropData.height);
-            
-            // Рисуем углы для resize
-            const handleSize = 8;
-            ctx.fillStyle = '#3b82f6';
-            
-            // Top-left
-            ctx.fillRect(cropData.x - handleSize/2, cropData.y - handleSize/2, handleSize, handleSize);
-            // Top-right
-            ctx.fillRect(cropData.x + cropData.width - handleSize/2, cropData.y - handleSize/2, handleSize, handleSize);
-            // Bottom-left
-            ctx.fillRect(cropData.x - handleSize/2, cropData.y + cropData.height - handleSize/2, handleSize, handleSize);
-            // Bottom-right
-            ctx.fillRect(cropData.x + cropData.width - handleSize/2, cropData.y + cropData.height - handleSize/2, handleSize, handleSize);
         }
         
         function updatePreview() {
@@ -1199,6 +1157,9 @@
             const profileLength = document.getElementById('profile-length').value;
             const profileNotes = document.getElementById('profile-notes').value;
             
+            // Получаем параметры
+            const rotation = parseFloat(document.getElementById('rotation-slider-upload').value);
+            
             fetch('/api/profiles/upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1208,7 +1169,8 @@
                     crop_data: scaledCrop,
                     quantity_per_hanger: quantityPerHanger ? parseInt(quantityPerHanger) : null,
                     length: profileLength ? parseFloat(profileLength) : null,
-                    notes: profileNotes || ''
+                    notes: profileNotes || '',
+                    rotation: rotation
                 })
             })
             .then(res => res.json())
@@ -1281,9 +1243,26 @@
                     <div>
                         <p style="font-weight: 500; font-size: 13px; margin-bottom: 10px; text-align: center;">👁️ Превью (300px):</p>
                         <div style="border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #f9fafb; text-align: center;">
-                            <canvas id="preview-canvas" style="max-width: 100%; max-height: 200px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></canvas>
+                            <canvas id="preview-canvas" style="max-width: 100%; max-height: 200px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: filter 0.2s;"></canvas>
                             <p style="font-size: 11px; color: #9ca3af; margin-top: 10px;" id="preview-size">—</p>
                         </div>
+                        
+                        <!-- Поворот превью -->
+                        <div style="margin-top: 10px; padding: 10px; background: #f0f9ff; border: 2px solid #bfdbfe; border-radius: 8px;">
+                            <label style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: #4b5563; font-weight: 500;">
+                                <span>🔄 Поворот превью:</span>
+                                <span id="rotation-value-upload">0°</span>
+                            </label>
+                            <input type="range" id="rotation-slider-upload" min="0" max="360" step="90" value="0" 
+                                   style="width: 100%;" oninput="document.getElementById('rotation-value-upload').textContent = this.value + '°'; applyPreviewFilters()">
+                            <div style="display: flex; gap: 4px; margin-top: 8px;">
+                                <button onclick="setRotation(0)" style="flex: 1; padding: 6px; font-size: 11px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">0°</button>
+                                <button onclick="setRotation(90)" style="flex: 1; padding: 6px; font-size: 11px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">90°</button>
+                                <button onclick="setRotation(180)" style="flex: 1; padding: 6px; font-size: 11px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">180°</button>
+                                <button onclick="setRotation(270)" style="flex: 1; padding: 6px; font-size: 11px; background: #e5e7eb; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">270°</button>
+                            </div>
+                        </div>
+                        
                         <button class="btn-secondary" onclick="resetCrop()" style="width: 100%; margin-top: 10px; padding: 8px;">
                             🔄 Сбросить
                         </button>
@@ -1327,3 +1306,6 @@
     </div>
 </body>
 </html>
+
+
+
