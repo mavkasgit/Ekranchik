@@ -926,29 +926,24 @@ def upload_profile_photo():
         
         clean_name = profile_name.strip()
         
-        # === 1. ПОЛНОЕ ФОТО (оригинал, без кропа) ===
+        # === 1. ПОЛНОЕ ФОТО (оригинал БЕЗ изменений) ===
         img_full = img_original.copy()
         img_full = convert_to_rgb(img_full)
         
-        # Resize до 800px (сохраняем пропорции)
-        max_size_full = 800
-        if img_full.width > max_size_full or img_full.height > max_size_full:
-            img_full.thumbnail((max_size_full, max_size_full), Image.Resampling.LANCZOS)
-        
         full_path = PROFILES_DIR / f"{clean_name}.jpg"
-        img_full.save(full_path, 'JPEG', quality=90, optimize=True)
-        print(f"[UPLOAD] Полное фото сохранено: {full_path}")
+        img_full.save(full_path, 'JPEG', quality=95, optimize=True)
+        print(f"[UPLOAD] Полное фото сохранено: {full_path} ({img_full.width}x{img_full.height})")
         
-        # === 2. ПРЕВЬЮ (с кропом) ===
+        # === 2. ПРЕВЬЮ (кропнутая область → уменьшена до 300px) ===
         img_thumb = img_original.copy()
         
-        # Применяем кроп
+        # Применяем кроп (если указан)
         if crop_data:
             x = int(crop_data.get('x', 0))
             y = int(crop_data.get('y', 0))
             width = int(crop_data.get('width', img_thumb.width))
             height = int(crop_data.get('height', img_thumb.height))
-            print(f"[UPLOAD] Кроп: x={x}, y={y}, width={width}, height={height}")
+            print(f"[UPLOAD] Кроп для превью: x={x}, y={y}, width={width}, height={height}")
             
             # Валидация координат
             if width > 0 and height > 0:
@@ -959,10 +954,12 @@ def upload_profile_photo():
         
         img_thumb = convert_to_rgb(img_thumb)
         
-        # Resize до 300px (для превью)
+        # Resize до 300px (для превью) - сохраняем пропорции
         max_size_thumb = 300
         if img_thumb.width > max_size_thumb or img_thumb.height > max_size_thumb:
             img_thumb.thumbnail((max_size_thumb, max_size_thumb), Image.Resampling.LANCZOS)
+        
+        print(f"[UPLOAD] Превью создано: {img_thumb.width}x{img_thumb.height}")
         
         thumb_path = PROFILES_DIR / f"{clean_name}-thumb.jpg"
         img_thumb.save(thumb_path, 'JPEG', quality=85, optimize=True)
