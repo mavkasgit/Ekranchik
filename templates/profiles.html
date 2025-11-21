@@ -19,16 +19,65 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding-bottom: 20px;
         }
         
         .header {
             background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px 30px;
+            border-bottom: 2px solid #f3f4f6;
             margin-bottom: 20px;
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+            display: grid;
+            grid-template-columns: minmax(200px, auto) auto 1fr;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .header-title {
+            white-space: nowrap;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        
+        .header-stats {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .btn-nav {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-nav.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3), 0 4px 12px rgba(37, 99, 235, 0.2);
+            transform: scale(1.05);
         }
         
         h1 {
@@ -61,10 +110,7 @@
         }
         
         .content {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 0 30px;
         }
         
         .buttons {
@@ -394,14 +440,23 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 id="page-title">📷 Профили без фото</h1>
-            <p class="subtitle" id="page-subtitle">Список профилей, для которых отсутствуют изображения</p>
-            <div class="stats">
-                <div class="stat">
-                    <span id="stat-label">📦 Всего профилей:</span> <strong id="total-missing">—</strong>
-                </div>
-                <div class="stat">
-                    📁 Путь: <strong>static/images/</strong>
+            <div class="header-title">
+                <h1 id="page-title">📷 Профили без фото</h1>
+                <p class="subtitle" id="page-subtitle" style="font-size: 12px; color: #6b7280; margin-top: 4px;">Список профилей, для которых отсутствуют изображения</p>
+            </div>
+            <div class="nav-buttons">
+                <button class="btn-nav" onclick="window.location.href='/'">📊 Таблица</button>
+                <button class="btn-nav active">📷 Профили</button>
+                <button class="btn-nav" onclick="window.location.href='/catalog'">📚 Справочник</button>
+            </div>
+            <div class="header-stats">
+                <div class="stats">
+                    <div class="stat">
+                        <span id="stat-label">📦 Всего профилей:</span> <strong id="total-missing">—</strong>
+                    </div>
+                    <div class="stat">
+                        📁 Путь: <strong>static/images/</strong>
+                    </div>
                 </div>
             </div>
         </div>

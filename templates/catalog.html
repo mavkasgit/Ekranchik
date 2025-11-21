@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Справочник профилей - Ekranchik</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 0 0 20px 0;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 2px solid #f3f4f6;
+            margin-bottom: 20px;
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+            display: grid;
+            grid-template-columns: minmax(200px, auto) auto 1fr;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .header-title {
+            white-space: nowrap;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        
+        .header-stats {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .btn-nav {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-nav.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3), 0 4px 12px rgba(37, 99, 235, 0.2);
+            transform: scale(1.05);
+        }
+        
+        .header h1 {
+            color: #1f2937;
+            font-size: 28px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .stat-item {
+            padding: 8px 16px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .profile-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        
+        .profile-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .profile-photo {
+            width: 100%;
+            height: 200px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .profile-photo:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .profile-photo img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        
+        .modal-close:hover {
+            color: #1f2937;
+        }
+        
+        .modal-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .profile-photo.no-photo {
+            color: #9ca3af;
+            font-size: 48px;
+        }
+        
+        .profile-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+        
+        .profile-params {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        
+        .param-label {
+            color: #6b7280;
+        }
+        
+        .param-value {
+            color: #1f2937;
+            font-weight: 500;
+        }
+        
+        .profile-notes {
+            font-size: 13px;
+            color: #6b7280;
+            font-style: italic;
+            margin-bottom: 15px;
+            min-height: 40px;
+        }
+        
+        .profile-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-edit {
+            flex: 1;
+            background: #3b82f6;
+            color: white;
+            padding: 8px;
+            font-size: 13px;
+        }
+        
+        .btn-edit:hover {
+            background: #2563eb;
+        }
+        
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        
+        .btn-delete:hover {
+            background: #dc2626;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <h1>📚 Справочник профилей</h1>
+                <p style="color: #6b7280; margin-top: 4px; font-size: 12px;">Все профили с фото и параметрами</p>
+            </div>
+            <div class="nav-buttons">
+                <button class="btn-nav" onclick="window.location.href='/'">📊 Таблица</button>
+                <button class="btn-nav" onclick="window.location.href='/profiles'">📷 Профили</button>
+                <button class="btn-nav active">📚 Справочник</button>
+            </div>
+            <div class="header-stats">
+                <div class="stats">
+                    <div class="stat-item">
+                        <strong id="total-profiles">0</strong> профилей
+                    </div>
+                    <button class="btn-primary" onclick="loadCatalog()" style="margin-left: 20px;">🔄 Обновить</button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="padding: 0 30px; margin-bottom: 20px;">
+            <input type="text" id="search-input" placeholder="🔍 Поиск профилей..." 
+                   style="width: 100%; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px;"
+                   onkeyup="searchCatalog()">
+        </div>
+        
+        <div id="catalog-container" style="padding: 0 30px;">
+            <div class="loading">
+                <div class="spinner"></div>
+                Загрузка справочника...
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function loadCatalog() {
+            const container = document.getElementById('catalog-container');
+            const searchValue = document.getElementById('search-input').value.trim();
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>Загрузка справочника...</div>';
+            
+            const url = searchValue ? `/api/catalog?search=${encodeURIComponent(searchValue)}` : '/api/catalog';
+            
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        container.innerHTML = '<div class="loading" style="color: red;">Ошибка загрузки</div>';
+                        return;
+                    }
+                    
+                    document.getElementById('total-profiles').textContent = data.total;
+                    
+                    if (data.profiles.length === 0) {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <h3>📭 Справочник пуст</h3>
+                                <p>Загрузите фото профилей чтобы они появились здесь</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const grid = document.createElement('div');
+                    grid.className = 'catalog-grid';
+                    
+                    data.profiles.forEach(profile => {
+                        const card = document.createElement('div');
+                        card.className = 'profile-card';
+                        
+                        const photoHtml = profile.photo_thumb 
+                            ? `<img src="${profile.photo_thumb}" alt="${profile.name}">`
+                            : '<div class="no-photo">📷</div>';
+                        
+                        const photoClickHandler = profile.photo_full 
+                            ? `onclick="viewPhoto('${profile.name}', '${profile.photo_full}')"`
+                            : '';
+                        
+                        const quantityHtml = profile.quantity_per_hanger 
+                            ? `<div class="param-row">
+                                <span class="param-label">Кол-во на подвес:</span>
+                                <span class="param-value">${profile.quantity_per_hanger}</span>
+                               </div>`
+                            : '';
+                        
+                        const lengthHtml = profile.length
+                            ? `<div class="param-row">
+                                <span class="param-label">Длина:</span>
+                                <span class="param-value">${profile.length} мм</span>
+                               </div>`
+                            : '';
+                        
+                        const notesHtml = profile.notes || 'Нет примечаний';
+                        
+                        // Экранируем спецсимволы для JSON
+                        const profileDataJson = JSON.stringify({
+                            name: profile.name,
+                            quantity_per_hanger: profile.quantity_per_hanger,
+                            length: profile.length,
+                            notes: profile.notes
+                        }).replace(/"/g, '&quot;');
+                        
+                        card.innerHTML = `
+                            <div class="profile-photo ${profile.photo_thumb ? '' : 'no-photo'}" ${photoClickHandler}>
+                                ${photoHtml}
+                            </div>
+                            <div class="profile-name">${profile.name}</div>
+                            <div class="profile-params">
+                                ${quantityHtml}
+                                ${lengthHtml}
+                            </div>
+                            <div class="profile-notes">${notesHtml}</div>
+                            <div class="profile-actions">
+                                <button class="btn-edit" onclick='editProfile(${profileDataJson})'>✏️ Изменить</button>
+                                <button class="btn-delete" onclick="deleteProfile('${profile.name}')">🗑️</button>
+                            </div>
+                        `;
+                        
+                        grid.appendChild(card);
+                    });
+                    
+                    container.innerHTML = '';
+                    container.appendChild(grid);
+                })
+                .catch(err => {
+                    console.error('Ошибка:', err);
+                    container.innerHTML = '<div class="loading" style="color: red;">Ошибка загрузки данных</div>';
+                });
+        }
+        
+        let currentEditProfile = null;
+        let currentEditProfileData = null;
+        let newPhotoFile = null;
+        let cropCanvas = null;
+        let cropCtx = null;
+        let cropImage = null;
+        let cropData = { x: 0, y: 0, width: 0, height: 0 };
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        
+        function editProfile(profileData) {
+            currentEditProfile = profileData.name;
+            currentEditProfileData = profileData;
+            
+            document.getElementById('edit-profile-name').textContent = profileData.name;
+            document.getElementById('edit-quantity').value = profileData.quantity_per_hanger || '';
+            document.getElementById('edit-length').value = profileData.length || '';
+            document.getElementById('edit-notes').value = profileData.notes || '';
+            
+            // Получаем данные профиля из DOM для фото
+            const profileCard = event.target.closest('.profile-card');
+            const photoImg = profileCard?.querySelector('.profile-photo img');
+            const currentPhoto = document.getElementById('current-photo');
+            
+            if (photoImg && photoImg.src) {
+                currentPhoto.src = photoImg.src;
+                document.getElementById('current-photo-section').style.display = 'block';
+            } else {
+                document.getElementById('current-photo-section').style.display = 'none';
+            }
+            
+            document.getElementById('edit-modal').classList.add('active');
+        }
+        
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.remove('active');
+            currentEditProfile = null;
+            currentEditProfileData = null;
+            newPhotoFile = null;
+        }
+        
+        function showPhotoUpload() {
+            document.getElementById('upload-photo-modal').classList.add('active');
+            document.getElementById('photo-preview').style.display = 'none';
+            document.getElementById('upload-zone').style.display = 'block';
+            
+            // Добавляем обработчик вставки из буфера
+            document.addEventListener('paste', handlePaste);
+        }
+        
+        function closePhotoUpload() {
+            document.getElementById('upload-photo-modal').classList.remove('active');
+            newPhotoFile = null;
+            
+            // Удаляем обработчик вставки
+            document.removeEventListener('paste', handlePaste);
+        }
+        
+        function handlePaste(event) {
+            // Проверяем что модальное окно активно
+            if (!document.getElementById('upload-photo-modal').classList.contains('active')) {
+                return;
+            }
+            
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            loadImageForCrop(e.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                        event.preventDefault();
+                        break;
+                    }
+                }
+            }
+        }
+        
+        function handlePhotoSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                alert('Пожалуйста, выберите файл изображения');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                loadImageForCrop(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function loadImageForCrop(imageData) {
+            newPhotoFile = imageData;
+            
+            cropImage = new Image();
+            cropImage.onload = function() {
+                // Инициализируем canvas
+                cropCanvas = document.getElementById('crop-canvas');
+                cropCtx = cropCanvas.getContext('2d');
+                
+                // Масштабируем под размер окна
+                const maxWidth = 550;
+                const scale = Math.min(1, maxWidth / cropImage.width);
+                cropCanvas.width = cropImage.width * scale;
+                cropCanvas.height = cropImage.height * scale;
+                
+                // Рисуем изображение
+                cropCtx.drawImage(cropImage, 0, 0, cropCanvas.width, cropCanvas.height);
+                
+                // Инициализируем кроп на всё изображение
+                cropData = {
+                    x: 0,
+                    y: 0,
+                    width: cropCanvas.width,
+                    height: cropCanvas.height
+                };
+                updateCropInputs();
+                drawCropBox();
+                
+                // Показываем превью
+                document.getElementById('photo-preview').style.display = 'block';
+                document.getElementById('upload-zone').style.display = 'none';
+                
+                // Добавляем обработчики для кропа
+                initCropHandlers();
+            };
+            cropImage.src = imageData;
+        }
+        
+        function initCropHandlers() {
+            cropCanvas.addEventListener('mousedown', handleCropMouseDown);
+            document.addEventListener('mousemove', handleCropMouseMove);
+            document.addEventListener('mouseup', handleCropMouseUp);
+        }
+        
+        function handleCropMouseDown(e) {
+            const rect = cropCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDragging = true;
+        }
+        
+        function handleCropMouseMove(e) {
+            if (!isDragging || !cropCanvas) return;
+            
+            const rect = cropCanvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            cropData.x = Math.min(startX, currentX);
+            cropData.y = Math.min(startY, currentY);
+            cropData.width = Math.abs(currentX - startX);
+            cropData.height = Math.abs(currentY - startY);
+            
+            updateCropInputs();
+            drawCropBox();
+        }
+        
+        function handleCropMouseUp() {
+            isDragging = false;
+        }
+        
+        function drawCropBox() {
+            if (!cropCanvas || !cropCtx || !cropImage) return;
+            
+            // Перерисовываем изображение
+            cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+            cropCtx.drawImage(cropImage, 0, 0, cropCanvas.width, cropCanvas.height);
+            
+            // Затемняем всё кроме выделенной области
+            cropCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+            
+            // Очищаем выделенную область
+            cropCtx.clearRect(cropData.x, cropData.y, cropData.width, cropData.height);
+            cropCtx.drawImage(cropImage, 0, 0, cropCanvas.width, cropCanvas.height);
+            
+            // Рисуем рамку
+            cropCtx.strokeStyle = '#3b82f6';
+            cropCtx.lineWidth = 2;
+            cropCtx.strokeRect(cropData.x, cropData.y, cropData.width, cropData.height);
+        }
+        
+        function updateCropInputs() {
+            document.getElementById('crop-x').value = Math.round(cropData.x);
+            document.getElementById('crop-y').value = Math.round(cropData.y);
+            document.getElementById('crop-width').value = Math.round(cropData.width);
+            document.getElementById('crop-height').value = Math.round(cropData.height);
+        }
+        
+        function resetCrop() {
+            if (!cropCanvas) return;
+            cropData = {
+                x: 0,
+                y: 0,
+                width: cropCanvas.width,
+                height: cropCanvas.height
+            };
+            updateCropInputs();
+            drawCropBox();
+        }
+        
+        function uploadNewPhoto() {
+            if (!newPhotoFile || !currentEditProfile) return;
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Загрузка...';
+            
+            // Получаем текущие параметры профиля
+            const quantity = document.getElementById('edit-quantity').value;
+            const length = document.getElementById('edit-length').value;
+            const notes = document.getElementById('edit-notes').value;
+            
+            // Масштабируем координаты кропа к оригинальному размеру
+            const scale = cropCanvas.width / cropImage.width;
+            const scaledCrop = {
+                x: cropData.x / scale,
+                y: cropData.y / scale,
+                width: cropData.width / scale,
+                height: cropData.height / scale
+            };
+            
+            fetch('/api/profiles/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    profile_name: currentEditProfile,
+                    image_data: newPhotoFile,
+                    crop_data: scaledCrop,
+                    quantity_per_hanger: quantity ? parseInt(quantity) : null,
+                    length: length ? parseFloat(length) : null,
+                    notes: notes
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Фото успешно обновлено!');
+                    closePhotoUpload();
+                    closeEditModal();
+                    loadCatalog();
+                } else {
+                    alert(`❌ Ошибка: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                alert(`❌ Ошибка загрузки: ${err.message}`);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '✅ Загрузить фото';
+            });
+        }
+        
+        function saveProfile() {
+            if (!currentEditProfile) return;
+            
+            const quantity = document.getElementById('edit-quantity').value;
+            const length = document.getElementById('edit-length').value;
+            const notes = document.getElementById('edit-notes').value;
+            
+            fetch(`/api/catalog/${encodeURIComponent(currentEditProfile)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quantity_per_hanger: quantity ? parseInt(quantity) : null,
+                    length: length ? parseFloat(length) : null,
+                    notes: notes
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                    closeEditModal();
+                    loadCatalog();
+                } else {
+                    alert(`❌ Ошибка: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                alert(`❌ Ошибка сохранения: ${err.message}`);
+            });
+        }
+        
+        function deleteProfile(name) {
+            if (confirm(`Удалить профиль "${name}"?`)) {
+                alert('Удаление будет реализовано в следующей версии');
+            }
+        }
+        
+        let searchTimeout;
+        function searchCatalog() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadCatalog();
+            }, 500);
+        }
+        
+        function viewPhoto(name, photoUrl) {
+            const modal = document.getElementById('photo-modal');
+            const img = document.getElementById('modal-photo');
+            const title = document.getElementById('modal-photo-title');
+            
+            img.src = photoUrl;
+            title.textContent = name;
+            modal.classList.add('active');
+        }
+        
+        function closePhotoModal() {
+            document.getElementById('photo-modal').classList.remove('active');
+        }
+        
+        function deleteProfile(name) {
+            if (!confirm(`Удалить профиль "${name}" из справочника?\n\nБудут удалены:\n- Запись из базы данных\n- Фото профиля`)) {
+                return;
+            }
+            
+            fetch(`/api/catalog/${encodeURIComponent(name)}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                    loadCatalog();
+                } else {
+                    alert(`❌ Ошибка: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                alert(`❌ Ошибка удаления: ${err.message}`);
+            });
+        }
+        
+        // Загружаем при старте
+        loadCatalog();
+    </script>
+    
+    <!-- Модальное окно просмотра фото -->
+    <div class="modal" id="photo-modal" onclick="if(event.target === this) closePhotoModal()">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closePhotoModal()">×</span>
+            <h2 id="modal-photo-title" style="margin-bottom: 20px;">Профиль</h2>
+            <img id="modal-photo" class="modal-image" src="" alt="Фото профиля">
+        </div>
+    </div>
+    
+    <!-- Модальное окно редактирования -->
+    <div class="modal" id="edit-modal" onclick="if(event.target === this) closeEditModal()">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeEditModal()">×</span>
+            <h2 style="margin-bottom: 20px;">✏️ Редактирование профиля: <span id="edit-profile-name"></span></h2>
+            
+            <!-- Текущее фото -->
+            <div id="current-photo-section" style="margin-bottom: 20px; text-align: center;">
+                <p style="font-weight: 500; margin-bottom: 10px;">Текущее фото:</p>
+                <img id="current-photo" src="" alt="Фото профиля" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                <div style="margin-top: 10px;">
+                    <button class="btn-secondary" onclick="showPhotoUpload()" style="padding: 8px 16px;">📷 Изменить фото</button>
+                </div>
+            </div>
+            
+            <div style="display: grid; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Кол-во на подвес:</label>
+                    <input type="number" id="edit-quantity" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Длина (мм):</label>
+                    <input type="number" id="edit-length" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Примечание:</label>
+                    <textarea id="edit-notes" rows="3" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" onclick="saveProfile()" style="flex: 1; padding: 12px;">💾 Сохранить</button>
+                <button class="btn-secondary" onclick="closeEditModal()" style="padding: 12px 24px;">Отмена</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно загрузки фото -->
+    <div class="modal" id="upload-photo-modal" onclick="if(event.target === this) closePhotoUpload()">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="closePhotoUpload()">×</span>
+            <h2 style="margin-bottom: 20px;">📷 Загрузка нового фото</h2>
+            
+            <input type="file" id="photo-file" accept="image/*" style="display: none;" onchange="handlePhotoSelect(event)">
+            
+            <div id="upload-zone" onclick="document.getElementById('photo-file').click()" 
+                 style="border: 3px dashed #cbd5e1; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
+                <p style="color: #6b7280; margin: 0; font-weight: 500;">Выберите новое фото</p>
+                <p style="color: #9ca3af; font-size: 13px; margin-top: 8px;">Перетащите файл или нажмите <kbd style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 12px;">Ctrl+V</kbd></p>
+            </div>
+            
+            <div id="photo-preview" style="display: none;">
+                <p style="font-weight: 500; margin-bottom: 10px;">✂️ Выделите область для превью:</p>
+                <p style="color: #6b7280; font-size: 13px; margin-bottom: 15px;">Нажмите и перетащите мышью на изображении</p>
+                
+                <canvas id="crop-canvas" style="max-width: 100%; border: 2px solid #cbd5e1; border-radius: 8px; cursor: crosshair; margin-bottom: 15px;"></canvas>
+                
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 3px;">X:</label>
+                        <input type="number" id="crop-x" readonly style="width: 100%; padding: 6px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px; background: #f9fafb;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 3px;">Y:</label>
+                        <input type="number" id="crop-y" readonly style="width: 100%; padding: 6px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px; background: #f9fafb;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 3px;">Ширина:</label>
+                        <input type="number" id="crop-width" readonly style="width: 100%; padding: 6px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px; background: #f9fafb;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 3px;">Высота:</label>
+                        <input type="number" id="crop-height" readonly style="width: 100%; padding: 6px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px; background: #f9fafb;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-secondary" onclick="resetCrop()" style="padding: 10px 20px;">🔄 Сбросить</button>
+                    <button class="btn-primary" onclick="uploadNewPhoto()" style="flex: 1; padding: 12px;">✅ Загрузить фото</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

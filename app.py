@@ -603,6 +603,78 @@ def api_missing_profiles():
             'has_more': False
         })
 
+@app.route('/api/catalog')
+def api_catalog():
+    """API для получения всех профилей из справочника"""
+    try:
+        search = request.args.get('search', '').strip()
+        
+        if search:
+            profiles = db.search_profiles(search)
+        else:
+            profiles = db.get_all_profiles(order_by='updated_at DESC')
+        
+        return jsonify({
+            'success': True,
+            'total': len(profiles),
+            'profiles': profiles
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/catalog/<profile_name>', methods=['DELETE'])
+def api_delete_profile(profile_name):
+    """API для удаления профиля из справочника"""
+    try:
+        # Удаляем из БД
+        success = db.delete_profile(profile_name)
+        
+        if success:
+            # Удаляем файлы фото (если есть)
+            thumb_path = PROFILES_DIR / f"{profile_name}-thumb.jpg"
+            full_path = PROFILES_DIR / f"{profile_name}.jpg"
+            
+            if thumb_path.exists():
+                thumb_path.unlink()
+            if full_path.exists():
+                full_path.unlink()
+            
+            # Обновляем кэш
+            scan_profile_photos()
+            
+            return jsonify({'success': True, 'message': f'Профиль "{profile_name}" удалён'})
+        else:
+            return jsonify({'success': False, 'error': 'Не удалось удалить профиль'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/catalog/<profile_name>', methods=['PUT'])
+def api_update_profile(profile_name):
+    """API для обновления данных профиля"""
+    try:
+        data = request.get_json()
+        
+        quantity_per_hanger = data.get('quantity_per_hanger')
+        length = data.get('length')
+        notes = data.get('notes', '').strip()
+        
+        success = db.add_or_update_profile(
+            name=profile_name,
+            quantity_per_hanger=quantity_per_hanger,
+            length=length,
+            notes=notes
+        )
+        
+        if success:
+            return jsonify({'success': True, 'message': f'Профиль "{profile_name}" обновлён'})
+        else:
+            return jsonify({'success': False, 'error': 'Не удалось обновить профиль'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/profiles/search-duplicates')
 def api_search_duplicates():
     """Поиск профилей похожих на запрос (fuzzy matching)"""
@@ -805,6 +877,11 @@ def profiles_page():
     """Страница со списком профилей без фото"""
     return render_template('profiles.html')
 
+@app.route('/catalog')
+def catalog_page():
+    """Страница справочника профилей с фото и параметрами"""
+    return render_template('catalog.html')
+
 @app.route('/api/profiles/upload', methods=['POST'])
 def upload_profile_photo():
     """Загрузка фото профиля с кропом - сохраняет 2 файла + запись в БД"""
@@ -852,6 +929,7 @@ def upload_profile_photo():
         
         full_path = PROFILES_DIR / f"{clean_name}.jpg"
         img_full.save(full_path, 'JPEG', quality=90, optimize=True)
+        print(f"[UPLOAD] Полное фото сохранено: {full_path}")
         
         # === 2. ПРЕВЬЮ (с кропом) ===
         img_thumb = img_original.copy()
@@ -862,7 +940,14 @@ def upload_profile_photo():
             y = int(crop_data.get('y', 0))
             width = int(crop_data.get('width', img_thumb.width))
             height = int(crop_data.get('height', img_thumb.height))
-            img_thumb = img_thumb.crop((x, y, x + width, y + height))
+            print(f"[UPLOAD] Кроп: x={x}, y={y}, width={width}, height={height}")
+            
+            # Валидация координат
+            if width > 0 and height > 0:
+                img_thumb = img_thumb.crop((x, y, x + width, y + height))
+                print(f"[UPLOAD] Кроп применён, размер после: {img_thumb.width}x{img_thumb.height}")
+            else:
+                print(f"[UPLOAD] WARNING: Неверные размеры кропа, используем оригинал")
         
         img_thumb = convert_to_rgb(img_thumb)
         
@@ -873,6 +958,7 @@ def upload_profile_photo():
         
         thumb_path = PROFILES_DIR / f"{clean_name}-thumb.jpg"
         img_thumb.save(thumb_path, 'JPEG', quality=85, optimize=True)
+        print(f"[UPLOAD] Превью сохранено: {thumb_path}")
         
         # Сохраняем в базу данных
         url_full = f'/static/images/{clean_name}.jpg'
@@ -886,9 +972,11 @@ def upload_profile_photo():
             photo_thumb=url_thumb,
             photo_full=url_full
         )
+        print(f"[UPLOAD] Профиль '{clean_name}' сохранён в БД")
         
         # Обновляем кэш фото
         scan_profile_photos()
+        print(f"[UPLOAD] Кэш фото обновлён")
         
         return jsonify({
             'success': True,
