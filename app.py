@@ -345,11 +345,19 @@ def get_recent_profiles(limit=50):
         # Проверяем есть ли фото хотя бы у одного из профилей в строке
         has_photo = check_profiles_have_photos(profile_name)
         
+        # Получаем URL фото (для первого профиля если их несколько)
+        profiles = split_profiles(profile_name)
+        thumb_url, full_url = None, None
+        if profiles:
+            thumb_url, full_url = get_profile_photo(profiles[0])
+        
         result.append({
             'profile': profile_name,
             'date': row['date'].strftime('%d.%m.%Y') if pd.notna(row['date']) else '—',
             'number': row['number'] if pd.notna(row['number']) else '—',
             'has_photo': has_photo,
+            'photo_thumb': thumb_url,
+            'photo_full': full_url,
             'row_number': int(idx) + 2  # +2 потому что индекс с 0 + заголовок в Excel
         })
     
