@@ -518,9 +518,17 @@
         
         <div style="padding: 0 30px; margin-bottom: 20px;">
             <div style="display: flex; gap: 15px; align-items: center;">
-                <input type="text" id="search-input" placeholder="🔍 Поиск профилей..." 
+                <input type="text" id="search-input" placeholder="🔍 Поиск по названию или примечаниям..." 
                        style="flex: 1; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px;"
                        onkeyup="searchCatalog()">
+                
+                <!-- Сортировка -->
+                <select id="sort-select" onchange="loadCatalog()" 
+                        style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white;">
+                    <option value="updated_at">📅 По дате изменения</option>
+                    <option value="name">🔤 По алфавиту</option>
+                    <option value="usage_count">📊 По популярности</option>
+                </select>
                 
                 <!-- Кнопки управления таблицей (показываем только в table режиме) -->
                 <div id="table-controls" style="display: none; gap: 10px;">
@@ -564,9 +572,14 @@
         function loadCatalog() {
             const container = document.getElementById('catalog-container');
             const searchValue = document.getElementById('search-input').value.trim();
+            const sortValue = document.getElementById('sort-select').value;
             container.innerHTML = '<div class="loading"><div class="spinner"></div>Загрузка справочника...</div>';
             
-            const url = searchValue ? `/api/catalog?search=${encodeURIComponent(searchValue)}` : '/api/catalog';
+            // Формируем URL с параметрами
+            const params = new URLSearchParams();
+            if (searchValue) params.append('search', searchValue);
+            params.append('sort', sortValue);
+            const url = `/api/catalog?${params.toString()}`;
             
             fetch(url)
                 .then(res => res.json())
@@ -822,6 +835,17 @@
             if (currentView === 'table') {
                 document.getElementById('table-controls').style.display = 'flex';
             }
+            
+            // Восстанавливаем сортировку из localStorage
+            const savedSort = localStorage.getItem('catalog_sort') || 'updated_at';
+            document.getElementById('sort-select').value = savedSort;
+        });
+        
+        // Сохраняем сортировку при изменении
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sort-select').addEventListener('change', (e) => {
+                localStorage.setItem('catalog_sort', e.target.value);
+            });
         });
         
         // Переключение режима редактирования

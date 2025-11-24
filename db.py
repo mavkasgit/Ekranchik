@@ -163,21 +163,23 @@ def delete_profile(name):
     finally:
         conn.close()
 
-def search_profiles(query):
+def search_profiles(query, order_by='usage_count DESC'):
     """
-    Ищет профили по частичному совпадению имени
+    Ищет профили по частичному совпадению имени ИЛИ примечаний
     
     Args:
         query: поисковый запрос
+        order_by: порядок сортировки (по умолчанию usage_count DESC)
     
     Returns:
         list of dict
     """
     conn = get_db_connection()
     try:
+        # Ищем по имени ИЛИ примечаниям (notes)
         rows = conn.execute(
-            'SELECT * FROM profiles WHERE name LIKE ? ORDER BY usage_count DESC',
-            (f'%{query}%',)
+            f'SELECT * FROM profiles WHERE name LIKE ? OR notes LIKE ? ORDER BY {order_by}',
+            (f'%{query}%', f'%{query}%')
         ).fetchall()
         return [dict(row) for row in rows]
     finally:

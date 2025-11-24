@@ -692,19 +692,29 @@ def api_missing_profiles():
 
 @app.route('/api/catalog')
 def api_catalog():
-    """API для получения всех профилей из справочника"""
+    """API для получения всех профилей из справочника с поиском и сортировкой"""
     try:
         search = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort', 'updated_at').strip()  # updated_at, name, usage_count
+        
+        # Определяем порядок сортировки
+        if sort_by == 'name':
+            order_by = 'name COLLATE NOCASE ASC'  # Сортировка по алфавиту (игнорируя регистр)
+        elif sort_by == 'usage_count':
+            order_by = 'usage_count DESC'
+        else:  # updated_at (default)
+            order_by = 'updated_at DESC'
         
         if search:
-            profiles = db.search_profiles(search)
+            profiles = db.search_profiles(search, order_by=order_by)
         else:
-            profiles = db.get_all_profiles(order_by='updated_at DESC')
+            profiles = db.get_all_profiles(order_by=order_by)
         
         return jsonify({
             'success': True,
             'total': len(profiles),
-            'profiles': profiles
+            'profiles': profiles,
+            'sort_by': sort_by
         })
     except Exception as e:
         return jsonify({
