@@ -326,6 +326,171 @@
             font-size: 20px;
             margin-bottom: 10px;
         }
+        
+        .view-toggle-btn {
+            padding: 10px 14px;
+            border: none;
+            background: transparent;
+            color: #6b7280;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .view-toggle-btn:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .view-toggle-btn.active {
+            background: white;
+            color: #3b82f6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Табличный вид */
+        .catalog-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        .catalog-table thead {
+            background: #f9fafb;
+            position: sticky;
+            top: 0;
+        }
+        
+        .catalog-table thead th {
+            padding: 12px;
+            text-align: center;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 13px;
+        }
+        
+        .catalog-table tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+        
+        .catalog-table tbody tr:hover {
+            background: #f9fafb;
+        }
+        
+        .catalog-table td {
+            padding: 12px;
+            vertical-align: middle;
+        }
+        
+        .table-photo {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .table-photo:hover {
+            transform: scale(1.1);
+        }
+        
+        .table-no-photo {
+            width: 60px;
+            height: 60px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #9ca3af;
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .table-actions button {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .btn-edit {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .btn-edit:hover {
+            background: #bfdbfe;
+        }
+        
+        .btn-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .btn-delete:hover {
+            background: #fecaca;
+        }
+        
+        /* Inline редактирование */
+        .editing-row td {
+            background: #fef3c7 !important;
+        }
+        
+        .inline-input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 2px solid #3b82f6;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .inline-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        
+        .btn-save {
+            background: #10b981;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .btn-save:hover {
+            background: #059669;
+        }
+        
+        .btn-cancel {
+            background: #6b7280;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        .btn-cancel:hover {
+            background: #4b5563;
+        }
     </style>
 </head>
 <body>
@@ -352,9 +517,39 @@
         </div>
         
         <div style="padding: 0 30px; margin-bottom: 20px;">
-            <input type="text" id="search-input" placeholder="🔍 Поиск профилей..." 
-                   style="width: 100%; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px;"
-                   onkeyup="searchCatalog()">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <input type="text" id="search-input" placeholder="🔍 Поиск профилей..." 
+                       style="flex: 1; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px;"
+                       onkeyup="searchCatalog()">
+                
+                <!-- Кнопки управления таблицей (показываем только в table режиме) -->
+                <div id="table-controls" style="display: none; gap: 10px;">
+                    <button class="btn-primary" onclick="addNewRow()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 10px 16px; font-size: 14px;">
+                        ➕ Добавить строку
+                    </button>
+                    <button id="edit-mode-btn" class="btn-primary" onclick="toggleEditMode()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 10px 16px; font-size: 14px;">
+                        ✏️ Режим редактирования
+                    </button>
+                </div>
+                
+                <div style="display: flex; gap: 8px; background: #f3f4f6; padding: 4px; border-radius: 10px;">
+                    <button id="view-grid-btn" class="view-toggle-btn active" onclick="switchView('grid')" title="Сетка">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                    </button>
+                    <button id="view-table-btn" class="view-toggle-btn" onclick="switchView('table')" title="Таблица">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="9" x2="21" y2="9"/>
+                            <line x1="3" y1="15" x2="21" y2="15"/>
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
         
         <div id="catalog-container" style="padding: 0 30px;">
@@ -393,10 +588,25 @@
                         return;
                     }
                     
-                    const grid = document.createElement('div');
-                    grid.className = 'catalog-grid';
-                    
-                    data.profiles.forEach(profile => {
+                    // Рендерим в зависимости от текущего режима
+                    if (currentView === 'table') {
+                        renderTableView(data.profiles, container);
+                    } else {
+                        renderGridView(data.profiles, container);
+                    }
+                })
+                .catch(err => {
+                    console.error('Ошибка:', err);
+                    container.innerHTML = '<div class="loading" style="color: red;">Ошибка загрузки данных</div>';
+                });
+        }
+        
+        // Рендеринг в виде сетки (карточки)
+        function renderGridView(profiles, container) {
+            const grid = document.createElement('div');
+            grid.className = 'catalog-grid';
+            
+            profiles.forEach(profile => {
                         const card = document.createElement('div');
                         card.className = 'profile-card';
                         
@@ -448,21 +658,388 @@
                             </div>
                         `;
                         
-                        grid.appendChild(card);
-                    });
-                    
-                    container.innerHTML = '';
-                    container.appendChild(grid);
+                grid.appendChild(card);
+            });
+            
+            container.innerHTML = '';
+            container.appendChild(grid);
+        }
+        
+        // Рендеринг в виде таблицы
+        function renderTableView(profiles, container) {
+            const table = document.createElement('table');
+            table.className = 'catalog-table';
+            
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Фото</th>
+                        <th style="width: 150px;">Название</th>
+                        <th style="width: 120px;">Кол-во на подвес</th>
+                        <th style="width: 100px;">Длина (мм)</th>
+                        <th>Примечания</th>
+                        <th style="width: 100px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            `;
+            
+            const tbody = table.querySelector('tbody');
+            
+            profiles.forEach(profile => {
+                const tr = document.createElement('tr');
+                tr.id = `row-${profile.name}`;
+                
+                const photoHtml = profile.photo_thumb
+                    ? `<img src="${profile.photo_thumb}" class="table-photo" onclick="handlePhotoClick('${profile.name}', '${profile.photo_full || profile.photo_thumb}')" alt="${profile.name}" title="Кликните для просмотра">`
+                    : '<div class="table-no-photo" onclick="handlePhotoClick(\'\', \'\')" style="cursor: pointer;" title="Нет фото">📷</div>';
+                
+                tr.innerHTML = `
+                    <td style="text-align: center;">${photoHtml}</td>
+                    <td><strong>${profile.name}</strong></td>
+                    <td style="text-align: center;">${profile.quantity_per_hanger || '-'}</td>
+                    <td style="text-align: center;">${profile.length || '-'}</td>
+                    <td>${profile.notes || '-'}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-delete" onclick="deleteProfile('${profile.name}')">🗑️</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+            
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // Переключение между видами
+        function switchView(view) {
+            currentView = view;
+            localStorage.setItem('catalog_view', view);
+            
+            // Переключаем активную кнопку
+            document.getElementById('view-grid-btn').classList.toggle('active', view === 'grid');
+            document.getElementById('view-table-btn').classList.toggle('active', view === 'table');
+            
+            // Показываем/скрываем кнопки управления таблицей
+            const tableControls = document.getElementById('table-controls');
+            if (view === 'table') {
+                tableControls.style.display = 'flex';
+            } else {
+                tableControls.style.display = 'none';
+                isEditMode = false;
+            }
+            
+            // Перезагружаем данные
+            loadCatalog();
+        }
+        
+        // Inline редактирование в таблице
+        function editInline(profileName) {
+            // Отменяем предыдущее редактирование
+            if (editingRow) {
+                cancelInlineEdit();
+            }
+            
+            const row = document.getElementById(`row-${profileName}`);
+            if (!row) return;
+            
+            editingRow = row;
+            row.classList.add('editing-row');
+            
+            // Получаем текущие значения
+            const cells = row.querySelectorAll('td');
+            const currentQuantity = cells[2].textContent.trim() === '-' ? '' : cells[2].textContent.trim();
+            const currentLength = cells[3].textContent.trim() === '-' ? '' : cells[3].textContent.trim();
+            const currentNotes = cells[4].textContent.trim() === '-' ? '' : cells[4].textContent.trim();
+            
+            // Заменяем ячейки на поля ввода
+            cells[2].innerHTML = `<input type="number" class="inline-input" id="edit-quantity" value="${currentQuantity}" placeholder="Кол-во">`;
+            cells[3].innerHTML = `<input type="number" class="inline-input" id="edit-length" value="${currentLength}" placeholder="Длина">`;
+            cells[4].innerHTML = `<textarea class="inline-input" id="edit-notes" rows="2" style="resize: vertical;">${currentNotes}</textarea>`;
+            cells[5].innerHTML = `
+                <div class="inline-actions">
+                    <button class="btn-save" onclick="saveInlineEdit('${profileName}')">💾 Сохранить</button>
+                    <button class="btn-cancel" onclick="cancelInlineEdit()">✖️ Отмена</button>
+                </div>
+            `;
+            
+            // Фокус на первое поле
+            document.getElementById('edit-quantity').focus();
+        }
+        
+        // Сохранение inline изменений
+        function saveInlineEdit(profileName) {
+            const quantity = document.getElementById('edit-quantity').value.trim();
+            const length = document.getElementById('edit-length').value.trim();
+            const notes = document.getElementById('edit-notes').value.trim();
+            
+            fetch(`/api/catalog/${profileName}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quantity_per_hanger: quantity ? parseInt(quantity) : null,
+                    length: length ? parseFloat(length) : null,
+                    notes: notes || ''
                 })
-                .catch(err => {
-                    console.error('Ошибка:', err);
-                    container.innerHTML = '<div class="loading" style="color: red;">Ошибка загрузки данных</div>';
-                });
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccessMessage('✅ Профиль обновлён!');
+                    editingRow = null;
+                    loadCatalog();
+                } else {
+                    alert('Ошибка: ' + (data.message || 'Не удалось обновить'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Ошибка сохранения');
+            });
+        }
+        
+        // Отмена inline редактирования
+        function cancelInlineEdit() {
+            if (!editingRow) return;
+            editingRow.classList.remove('editing-row');
+            editingRow = null;
+            loadCatalog();
+        }
+        
+        // Режим отображения: grid или table
+        let currentView = localStorage.getItem('catalog_view') || 'grid';
+        let isEditMode = false; // Режим редактирования всей таблицы
+        let newRowCounter = 0; // Счётчик для новых строк
+        
+        // Устанавливаем активную кнопку при загрузке
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('view-grid-btn').classList.toggle('active', currentView === 'grid');
+            document.getElementById('view-table-btn').classList.toggle('active', currentView === 'table');
+            
+            // Показываем кнопки управления если в table режиме
+            if (currentView === 'table') {
+                document.getElementById('table-controls').style.display = 'flex';
+            }
+        });
+        
+        // Переключение режима редактирования
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const btn = document.getElementById('edit-mode-btn');
+            
+            if (isEditMode) {
+                btn.textContent = '💾 Сохранить все';
+                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                makeAllRowsEditable();
+            } else {
+                btn.textContent = '✏️ Режим редактирования';
+                btn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                saveAllRows();
+            }
+        }
+        
+        // Сделать все строки редактируемыми
+        function makeAllRowsEditable() {
+            const rows = document.querySelectorAll('.catalog-table tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 6) return; // Должно быть минимум 6 ячеек
+                
+                // Название - ВСЕГДА делаем редактируемым (для новых И существующих строк)
+                const nameCell = cells[1];
+                const currentName = nameCell.querySelector('strong')?.textContent || nameCell.textContent.trim();
+                nameCell.innerHTML = `<input type="text" class="inline-input" value="${currentName}" placeholder="Название профиля">`;
+                
+                // Кол-во на подвес
+                const qtyCell = cells[2];
+                const currentQty = qtyCell.textContent.trim() === '-' ? '' : qtyCell.textContent.trim();
+                qtyCell.innerHTML = `<input type="number" class="inline-input" value="${currentQty}" placeholder="Кол-во">`;
+                
+                // Длина
+                const lengthCell = cells[3];
+                const currentLength = lengthCell.textContent.trim() === '-' ? '' : lengthCell.textContent.trim();
+                lengthCell.innerHTML = `<input type="number" class="inline-input" value="${currentLength}" placeholder="Длина">`;
+                
+                // Примечания
+                const notesCell = cells[4];
+                const currentNotes = notesCell.textContent.trim() === '-' ? '' : notesCell.textContent.trim();
+                notesCell.innerHTML = `<textarea class="inline-input" rows="2" style="resize: vertical;">${currentNotes}</textarea>`;
+                
+                row.classList.add('editing-row');
+            });
+        }
+        
+        // Сохранить все строки
+        function saveAllRows() {
+            const rows = document.querySelectorAll('.catalog-table tbody tr.editing-row');
+            let promises = [];
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const nameInput = cells[1].querySelector('input');
+                const qtyInput = cells[2].querySelector('input');
+                const lengthInput = cells[3].querySelector('input');
+                const notesInput = cells[4].querySelector('textarea');
+                
+                const newName = nameInput?.value.trim() || '';
+                const qty = qtyInput?.value.trim() || '';
+                const length = lengthInput?.value.trim() || '';
+                const notes = notesInput?.value.trim() || '';
+                
+                if (!newName) {
+                    // Пропускаем пустые строки
+                    return;
+                }
+                
+                // Определяем старое имя из ID строки
+                const oldName = row.id.replace('row-', '');
+                const isNewRow = row.classList.contains('new-row');
+                
+                const data = {
+                    quantity_per_hanger: qty ? parseInt(qty) : null,
+                    length: length ? parseFloat(length) : null,
+                    notes: notes || ''
+                };
+                
+                // Для новых строк и переименований используем PUT endpoint
+                // (создаст запись если не существует)
+                const targetName = isNewRow ? newName : (oldName !== newName && newName ? newName : oldName);
+                const promise = fetch(`/api/catalog/${encodeURIComponent(targetName)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).then(res => res.json());
+                promises.push(promise);
+            });
+            
+            if (promises.length === 0) {
+                loadCatalog();
+                return;
+            }
+            
+            Promise.all(promises).then(results => {
+                console.log('Результаты сохранения:', results);
+                const allSuccess = results.every(r => r.success);
+                const successCount = results.filter(r => r.success).length;
+                
+                if (allSuccess) {
+                    showSuccessMessage(`✅ Все изменения сохранены! (${successCount} строк)`);
+                } else {
+                    const failedCount = results.length - successCount;
+                    alert(`⚠️ Сохранено: ${successCount}, ошибок: ${failedCount}\n\nПроверьте консоль для деталей`);
+                    console.error('Ошибки сохранения:', results.filter(r => !r.success));
+                }
+                loadCatalog();
+            }).catch(err => {
+                console.error('Критическая ошибка:', err);
+                alert('Ошибка при сохранении. Проверьте консоль (F12)');
+                loadCatalog();
+            });
+        }
+        
+        // Добавить новую пустую строку
+        function addNewRow() {
+            const tbody = document.querySelector('.catalog-table tbody');
+            if (!tbody) return;
+            
+            newRowCounter++;
+            const tr = document.createElement('tr');
+            tr.id = `row-new-${newRowCounter}`;
+            tr.classList.add('new-row', 'editing-row');
+            
+            tr.innerHTML = `
+                <td style="text-align: center;">
+                    <div class="table-no-photo" onclick="uploadPhotoForNewRow('new-${newRowCounter}')" style="cursor: pointer;" title="Кликните чтобы загрузить фото">📷</div>
+                </td>
+                <td><input type="text" class="inline-input" placeholder="Название профиля"></td>
+                <td style="text-align: center;"><input type="number" class="inline-input" placeholder="Кол-во"></td>
+                <td style="text-align: center;"><input type="number" class="inline-input" placeholder="Длина"></td>
+                <td><textarea class="inline-input" rows="2" style="resize: vertical;" placeholder="Примечания"></textarea></td>
+                <td style="text-align: center;">
+                    <button class="btn-delete" onclick="this.closest('tr').remove()">🗑️</button>
+                </td>
+            `;
+            
+            tbody.insertBefore(tr, tbody.firstChild);
+            
+            // Автоматически включаем режим редактирования
+            if (!isEditMode) {
+                toggleEditMode();
+            }
+            
+            // Фокус на название
+            tr.querySelector('input').focus();
+        }
+        
+        // Обработка клика по фото (просмотр или редактирование)
+        function handlePhotoClick(profileName, photoUrl) {
+            if (isEditMode) {
+                // В режиме редактирования - загружаем новое фото
+                uploadPhotoForRow(profileName, false);
+            } else {
+                // В обычном режиме - просмотр фото
+                if (photoUrl) {
+                    viewPhoto(profileName, photoUrl);
+                }
+            }
+        }
+        
+        // Загрузить фото для новой строки
+        function uploadPhotoForNewRow(rowId) {
+            const row = document.getElementById(`row-${rowId}`);
+            if (!row) return;
+            
+            const nameInput = row.querySelector('td:nth-child(2) input');
+            if (!nameInput) return;
+            
+            const inputName = nameInput.value.trim();
+            if (!inputName) {
+                alert('Сначала введите название профиля');
+                nameInput.focus();
+                return;
+            }
+            
+            currentProfile = inputName;
+            currentUploadingRow = rowId; // Сохраняем ID строки
+            showPhotoUpload();
+        }
+        
+        // Загрузить фото для строки
+        function uploadPhotoForRow(profileName, isNewProfile = false) {
+            currentUploadingRow = profileName;
+            
+            // Если это новая строка, получаем название из input
+            if (isNewProfile) {
+                const row = document.getElementById(`row-${profileName}`);
+                if (row) {
+                    const nameInput = row.querySelector('td:nth-child(2) input');
+                    if (nameInput) {
+                        const inputName = nameInput.value.trim();
+                        if (inputName) {
+                            currentUploadingRow = inputName;
+                            currentProfile = inputName;
+                        } else {
+                            alert('Сначала введите название профиля');
+                            nameInput.focus();
+                            return;
+                        }
+                    }
+                }
+            } else {
+                currentProfile = profileName;
+            }
+            
+            // Открываем модальное окно загрузки фото (то же что в editProfile)
+            showPhotoUpload();
         }
         
         let currentEditProfile = null;
+        let currentUploadingRow = null; // Для отслеживания строки при загрузке фото
         let currentEditProfileData = null;
         let newPhotoFile = null;
+        let editingRow = null; // Строка в режиме редактирования
         let cropCanvas = null;
         let cropCtx = null;
         let cropImage = null;
@@ -1190,16 +1767,22 @@
 
         
         function uploadNewPhoto() {
-            if (!newPhotoFile || !currentEditProfile) return;
+            // Определяем профиль: либо из editModal, либо из currentProfile (загрузка из таблицы)
+            const profileName = currentEditProfile || currentProfile;
+            if (!newPhotoFile || !profileName) return;
             
             const btn = event.target;
             btn.disabled = true;
             btn.textContent = '⏳ Загрузка...';
             
-            // Получаем текущие параметры профиля
-            const quantity = document.getElementById('edit-quantity').value;
-            const length = document.getElementById('edit-length').value;
-            const notes = document.getElementById('edit-notes').value;
+            // Получаем текущие параметры профиля (если есть форма редактирования)
+            const quantityInput = document.getElementById('edit-quantity');
+            const lengthInput = document.getElementById('edit-length');
+            const notesInput = document.getElementById('edit-notes');
+            
+            const quantity = quantityInput ? quantityInput.value : '';
+            const length = lengthInput ? lengthInput.value : '';
+            const notes = notesInput ? notesInput.value : '';
             
             // Масштабируем координаты кропа к оригинальному размеру
             const scale = cropCanvas.width / cropImage.width;
@@ -1217,7 +1800,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    profile_name: currentEditProfile,
+                    profile_name: profileName,
                     image_data: newPhotoFile,
                     crop_data: scaledCrop,
                     quantity_per_hanger: quantity ? parseInt(quantity) : null,
@@ -1232,7 +1815,37 @@
                     showSuccessMessage('✅ Фото успешно обновлено!');
                     closePhotoUpload();
                     closeEditModal();
-                    loadCatalog();
+                    
+                    // Если в режиме редактирования - ставим галочку вместо фото
+                    if (isEditMode && currentView === 'table') {
+                        // Ищем строку по currentUploadingRow (может быть обычным именем или new-X)
+                        const rowId = currentUploadingRow || profileName;
+                        const row = document.getElementById(`row-${rowId}`);
+                        if (row) {
+                            const photoCell = row.querySelector('td:first-child');
+                            if (photoCell) {
+                                // Показываем зелёную галочку что фото загружено
+                                const clickHandler = rowId.startsWith('new-') 
+                                    ? `uploadPhotoForNewRow('${rowId}')`
+                                    : `handlePhotoClick('${profileName}', '')`;
+                                
+                                photoCell.innerHTML = `
+                                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+                                                border-radius: 6px; display: flex; align-items: center; justify-content: center; 
+                                                color: white; font-size: 32px; cursor: pointer;" 
+                                         onclick="${clickHandler}" 
+                                         title="Фото загружено! Будет отображено после сохранения">
+                                        ✓
+                                    </div>
+                                `;
+                            }
+                        }
+                        // Очищаем currentUploadingRow
+                        currentUploadingRow = null;
+                    } else {
+                        // В обычном режиме - перезагружаем
+                        loadCatalog();
+                    }
                 } else {
                     alert(`❌ Ошибка: ${data.error}`);
                 }
