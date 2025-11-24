@@ -1904,6 +1904,11 @@
             }, 500);
         }
         
+        // Переменные для зума в catalog
+        let catalogZoom = 1;
+        let catalogDragging = false;
+        let catalogStartX, catalogStartY, catalogScrollLeft, catalogScrollTop;
+        
         function viewPhoto(name, photoUrl) {
             const modal = document.getElementById('photo-modal');
             const img = document.getElementById('modal-photo');
@@ -1912,10 +1917,76 @@
             img.src = photoUrl;
             title.textContent = name;
             modal.classList.add('active');
+            
+            // Сброс зума
+            catalogZoom = 1;
+            img.style.transform = `scale(${catalogZoom})`;
+            img.style.cursor = 'zoom-in';
+            
+            // Добавляем обработчики зума
+            setupCatalogPhotoZoom(img);
         }
         
         function closePhotoModal() {
             document.getElementById('photo-modal').classList.remove('active');
+            catalogZoom = 1;
+        }
+        
+        function setupCatalogPhotoZoom(img) {
+            const modalContent = img.parentElement;
+            
+            // Зум колёсиком мыши
+            modalContent.onwheel = (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                catalogZoom = Math.max(0.5, Math.min(5, catalogZoom + delta));
+                img.style.transform = `scale(${catalogZoom})`;
+                img.style.cursor = catalogZoom > 1 ? 'move' : 'zoom-in';
+                img.style.transition = 'transform 0.1s ease';
+            };
+            
+            // Двойной клик для зума
+            img.ondblclick = (e) => {
+                e.stopPropagation();
+                catalogZoom = catalogZoom === 1 ? 2.5 : 1;
+                img.style.transform = `scale(${catalogZoom})`;
+                img.style.cursor = catalogZoom > 1 ? 'move' : 'zoom-in';
+            };
+            
+            // Перетаскивание при зуме
+            img.onmousedown = (e) => {
+                if (catalogZoom > 1) {
+                    e.preventDefault();
+                    catalogDragging = true;
+                    catalogStartX = e.pageX - modalContent.offsetLeft;
+                    catalogStartY = e.pageY - modalContent.offsetTop;
+                    catalogScrollLeft = modalContent.scrollLeft;
+                    catalogScrollTop = modalContent.scrollTop;
+                    img.style.cursor = 'grabbing';
+                }
+            };
+            
+            modalContent.onmousemove = (e) => {
+                if (!catalogDragging) return;
+                e.preventDefault();
+                const x = e.pageX - modalContent.offsetLeft;
+                const y = e.pageY - modalContent.offsetTop;
+                const walkX = (x - catalogStartX) * 2;
+                const walkY = (y - catalogStartY) * 2;
+                modalContent.scrollLeft = catalogScrollLeft - walkX;
+                modalContent.scrollTop = catalogScrollTop - walkY;
+            };
+            
+            modalContent.onmouseup = () => {
+                catalogDragging = false;
+                if (catalogZoom > 1) {
+                    img.style.cursor = 'move';
+                }
+            };
+            
+            modalContent.onmouseleave = () => {
+                catalogDragging = false;
+            };
         }
         
         function deleteProfile(name) {
