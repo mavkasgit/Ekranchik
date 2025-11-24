@@ -701,7 +701,31 @@
                         
                         // Секция Загрузка
                         html += '<tr class="section-divider"><td colspan="10">📦 ЗАГРУЗКА</td></tr>';
-                        html += data.products.map(p => `
+                        html += data.products.map(p => {
+                            // Создаём список превью фото для всех профилей (горизонтально)
+                            const profilesInfo = p.profiles_info || [];
+                            const photosHtml = profilesInfo.map(prof => {
+                                const processingBadges = prof.processing && prof.processing.length > 0 
+                                    ? prof.processing.map(proc => `<span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 4px;">${proc}</span>`).join('')
+                                    : '';
+                                
+                                if (prof.has_photo) {
+                                    return `
+                                        <div style="display: inline-block; margin-right: 12px; margin-bottom: 8px; text-align: center;">
+                                            <img src="${prof.photo_thumb}" alt="${prof.name}" 
+                                                 style="max-width: 300px; max-height: 300px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;"
+                                                 onclick="openPhotoModal('${prof.photo_full}', '${prof.name}')" 
+                                                 title="${prof.name} - нажмите для просмотра">
+                                            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">${prof.name}${processingBadges}</p>
+                                        </div>
+                                    `;
+                                }
+                                return '';
+                            }).join('');
+                            
+                            const photoCell = photosHtml || '<div class="no-photo">📷</div>';
+                            
+                            return `
                             <tr>
                                 <td>${p.date || '—'}</td>
                                 <td>${p.time || '—'}</td>
@@ -710,14 +734,12 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
-                                <td>${p.profile_photo_thumb ? 
-                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
-                                    '<div class="no-photo">📷</div>'
-                                }</td>
+                                <td style="padding: 8px;">${photoCell}</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                         
                         // Секция Выгрузка
                         html += '<tr class="section-divider"><td colspan="10">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
@@ -742,7 +764,31 @@
                         tbody.innerHTML = html;
                     } else {
                         // Обычный режим
-                        tbody.innerHTML = data.products.map(p => `
+                        tbody.innerHTML = data.products.map(p => {
+                            // Создаём список превью фото для всех профилей (горизонтально)
+                            const profilesInfo = p.profiles_info || [];
+                            const photosHtml = profilesInfo.map(prof => {
+                                const processingBadges = prof.processing && prof.processing.length > 0 
+                                    ? prof.processing.map(proc => `<span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 4px;">${proc}</span>`).join('')
+                                    : '';
+                                
+                                if (prof.has_photo) {
+                                    return `
+                                        <div style="display: inline-block; margin-right: 12px; margin-bottom: 8px; text-align: center;">
+                                            <img src="${prof.photo_thumb}" alt="${prof.name}" 
+                                                 style="max-width: 300px; max-height: 300px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;"
+                                                 onclick="openPhotoModal('${prof.photo_full}', '${prof.name}')" 
+                                                 title="${prof.name} - нажмите для просмотра">
+                                            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">${prof.name}${processingBadges}</p>
+                                        </div>
+                                    `;
+                                }
+                                return '';
+                            }).join('');
+                            
+                            const photoCell = photosHtml || '<div class="no-photo">📷</div>';
+                            
+                            return `
                             <tr>
                                 <td>${p.date || '—'}</td>
                                 <td>${p.time || '—'}</td>
@@ -751,14 +797,12 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
-                                <td>${p.profile_photo_thumb ? 
-                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
-                                    '<div class="no-photo">📷</div>'
-                                }</td>
+                                <td style="padding: 8px;">${photoCell}</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                     }
                 })
                 .catch(err => {
@@ -872,7 +916,31 @@
                         
                         // Секция Загрузка
                         html += '<tr class="section-divider"><td colspan="10">📦 ЗАГРУЗКА</td></tr>';
-                        html += data.products.map(p => `
+                        html += data.products.map(p => {
+                            // Создаём список превью фото для всех профилей (горизонтально)
+                            const profilesInfo = p.profiles_info || [];
+                            const photosHtml = profilesInfo.map(prof => {
+                                const processingBadges = prof.processing && prof.processing.length > 0 
+                                    ? prof.processing.map(proc => `<span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 4px;">${proc}</span>`).join('')
+                                    : '';
+                                
+                                if (prof.has_photo) {
+                                    return `
+                                        <div style="display: inline-block; margin-right: 12px; margin-bottom: 8px; text-align: center;">
+                                            <img src="${prof.photo_thumb}" alt="${prof.name}" 
+                                                 style="max-width: 300px; max-height: 300px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;"
+                                                 onclick="openPhotoModal('${prof.photo_full}', '${prof.name}')" 
+                                                 title="${prof.name} - нажмите для просмотра">
+                                            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">${prof.name}${processingBadges}</p>
+                                        </div>
+                                    `;
+                                }
+                                return '';
+                            }).join('');
+                            
+                            const photoCell = photosHtml || '<div class="no-photo">📷</div>';
+                            
+                            return `
                             <tr>
                                 <td>${p.date || '—'}</td>
                                 <td>${p.time || '—'}</td>
@@ -881,14 +949,12 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
-                                <td>${p.profile_photo_thumb ? 
-                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
-                                    '<div class="no-photo">📷</div>'
-                                }</td>
+                                <td style="padding: 8px;">${photoCell}</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                         
                         // Секция Выгрузка
                         html += '<tr class="section-divider"><td colspan="10">🚚 ВЫГРУЗКА (последние 10)</td></tr>';
@@ -913,7 +979,31 @@
                         tbody.innerHTML = html;
                     } else {
                         // Обычный режим
-                        tbody.innerHTML = data.products.map(p => `
+                        tbody.innerHTML = data.products.map(p => {
+                            // Создаём список превью фото для всех профилей (горизонтально)
+                            const profilesInfo = p.profiles_info || [];
+                            const photosHtml = profilesInfo.map(prof => {
+                                const processingBadges = prof.processing && prof.processing.length > 0 
+                                    ? prof.processing.map(proc => `<span style="background: #fbbf24; color: #78350f; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 4px;">${proc}</span>`).join('')
+                                    : '';
+                                
+                                if (prof.has_photo) {
+                                    return `
+                                        <div style="display: inline-block; margin-right: 12px; margin-bottom: 8px; text-align: center;">
+                                            <img src="${prof.photo_thumb}" alt="${prof.name}" 
+                                                 style="max-width: 300px; max-height: 300px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;"
+                                                 onclick="openPhotoModal('${prof.photo_full}', '${prof.name}')" 
+                                                 title="${prof.name} - нажмите для просмотра">
+                                            <p style="font-size: 11px; color: #6b7280; margin-top: 4px;">${prof.name}${processingBadges}</p>
+                                        </div>
+                                    `;
+                                }
+                                return '';
+                            }).join('');
+                            
+                            const photoCell = photosHtml || '<div class="no-photo">📷</div>';
+                            
+                            return `
                             <tr>
                                 <td>${p.date || '—'}</td>
                                 <td>${p.time || '—'}</td>
@@ -922,14 +1012,12 @@
                                 <td>${p.kpz_number || '—'}</td>
                                 <td>${p.client || '—'}</td>
                                 <td>${p.profile || '—'}</td>
-                                <td>${p.profile_photo_thumb ? 
-                                    `<img src="${p.profile_photo_thumb}" class="profile-photo" onclick="openPhotoModal('${p.profile_photo_full || p.profile_photo_thumb}', '${p.profile}')" alt="${p.profile}">` : 
-                                    '<div class="no-photo">📷</div>'
-                                }</td>
+                                <td style="padding: 8px;">${photoCell}</td>
                                 <td><strong>${p.lamels_qty || 0}</strong></td>
                                 <td>${p.color || '—'}</td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                     }
                 })
                 .catch(err => {

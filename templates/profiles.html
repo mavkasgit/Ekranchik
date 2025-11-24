@@ -659,21 +659,42 @@
                     
                     if (currentMode === 'recent') {
                         // Режим "Недавние" (все профили)
-                        html = data.profiles.map((profile, index) => `
+                        html = data.profiles.map((profile, index) => {
+                            // Используем детальную информацию по профилям
+                            const profilesInfo = profile.profiles_info || [];
+                            
+                            // Создаём список превью для колонки "Фото" (горизонтально)
+                            // Группируем профили по имени (без обработок), чтобы не дублировать фото
+                            const uniqueProfiles = {};
+                            profilesInfo.forEach(p => {
+                                if (!uniqueProfiles[p.name]) {
+                                    uniqueProfiles[p.name] = p;
+                                }
+                            });
+                            
+                            const photosHtml = Object.values(uniqueProfiles).map(p => {
+                                if (p.has_photo) {
+                                    return `
+                                        <div style="display: inline-block; margin-right: 12px; text-align: center;">
+                                            <img src="${p.photo_thumb}" alt="${p.name}" 
+                                                 style="max-width: 60px; max-height: 60px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: block;"
+                                                 onclick="viewFullPhoto('${p.name}', '${p.photo_full}')" 
+                                                 title="${p.name} - нажмите для просмотра">
+                                            <div style="font-size: 10px; margin-top: 2px; color: #6b7280;">${p.name}</div>
+                                        </div>
+                                    `;
+                                }
+                                return `<span class="photo-status no-photo" style="font-size: 12px; margin-right: 8px;">❌ ${p.name}</span>`;
+                            }).join('');
+                            
+                            return `
                             <tr>
                                 <td><strong style="color: #6b7280;">#${profile.row_number || (index + 1)}</strong></td>
                                 <td class="profile-name">${profile.profile}</td>
                                 <td>${profile.date}</td>
                                 <td><strong>${profile.number}</strong></td>
-                                <td>
-                                    ${profile.has_photo && profile.photo_thumb ? `
-                                        <img src="${profile.photo_thumb}" alt="${profile.profile}" 
-                                             style="max-width: 60px; max-height: 60px; object-fit: contain; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
-                                             onclick="viewFullPhoto('${profile.profile}', '${profile.photo_full}')" 
-                                             title="Нажмите для просмотра">
-                                    ` : `
-                                        <span class="photo-status no-photo">❌ Нет</span>
-                                    `}
+                                <td style="padding: 8px;">
+                                    ${photosHtml || '<span class="photo-status no-photo">❌ Нет</span>'}
                                 </td>
                                 <td>
                                     ${!profile.has_photo ? `
@@ -683,7 +704,8 @@
                                     ` : '—'}
                                 </td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                     } else if (currentMode === 'recent_missing') {
                         // Режим "Недавние без фото" (уникальные)
                         html = data.profiles.map((profile, index) => `
@@ -1221,6 +1243,7 @@
                 <button class="close-btn" onclick="closeUploadModal()">×</button>
             </div>
             
+
             <div id="drop-zone" class="drop-zone">
                 <div class="drop-zone-icon">📷</div>
                 <div class="drop-zone-text">

@@ -233,15 +233,61 @@ def get_dataframe(full_dataset=False):
         return df.tail(100).copy()
     return df.copy()
 
+def parse_profile_with_processing(text):
+    """
+    Парсит строку профиля, извлекая название и доп. обработки
+    Обработки: окно, греб (гребенка), сверло
+    
+    Примеры:
+    "ЮП-1625 окно" → {"name": "ЮП-1625", "processing": ["окно"]}
+    "юп-3233 греб + сверло" → {"name": "юп-3233", "processing": ["греб", "сверло"]}
+    "корпус" → {"name": "корпус", "processing": []}
+    """
+    import re
+    
+    if not text or pd.isna(text):
+        return {"name": "", "processing": []}
+    
+    text = str(text).strip()
+    
+    # Известные обработки (регистронезависимо)
+    processing_keywords = ['окно', 'греб', 'гребенка', 'сверло']
+    
+    found_processing = []
+    name = text
+    
+    # Ищем обработки в строке
+    for keyword in processing_keywords:
+        # Ищем слово целиком (с границами слов)
+        pattern = r'\b' + re.escape(keyword) + r'\b'
+        if re.search(pattern, text, re.IGNORECASE):
+            # Сокращаем "гребенка" до "греб"
+            if keyword == 'гребенка':
+                found_processing.append('греб')
+            else:
+                found_processing.append(keyword)
+            # Удаляем обработку из названия
+            name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+    
+    # Очищаем название от лишних пробелов и разделителей
+    name = re.sub(r'\s+', ' ', name).strip()
+    name = name.rstrip('+,;').strip()
+    
+    return {
+        "name": name,
+        "processing": found_processing
+    }
+
 def split_profiles(profile_string):
     """
     Разбивает строку с несколькими профилями на отдельные профили
-    Разделители: пробелы, +, запятые, точки с запятой
+    Теперь возвращает список dict с полями: name, processing
     
     Примеры:
-    "юп-1625  +  юп-3233 + юп-1875" → ["юп-1625", "юп-3233", "юп-1875"]
-    "корпус" → ["корпус"]
-    "1515  357  381  юп-009" → ["1515", "357", "381", "юп-009"]
+    "юп-1625 окно + юп-3233 греб + юп-1875" → 
+        [{"name": "юп-1625", "processing": ["окно"]}, 
+         {"name": "юп-3233", "processing": ["греб"]}, 
+         {"name": "юп-1875", "processing": []}]
     """
     if not profile_string or pd.isna(profile_string):
         return []
@@ -254,10 +300,15 @@ def split_profiles(profile_string):
     profile_str = re.sub(r'\s*[+,;]\s*|\s{2,}', '|', profile_str)
     
     # Разбиваем по |
-    profiles = [p.strip() for p in profile_str.split('|') if p.strip()]
+    parts = [p.strip() for p in profile_str.split('|') if p.strip()]
     
-    # Фильтруем слишком короткие (меньше 2 символов)
-    profiles = [p for p in profiles if len(p) >= 2]
+    # Парсим каждую часть
+    profiles = []
+    for part in parts:
+        parsed = parse_profile_with_processing(part)
+        # Фильтруем слишком короткие названия (меньше 2 символов)
+        if len(parsed["name"]) >= 2:
+            profiles.append(parsed)
     
     return profiles
 
@@ -294,8 +345,8 @@ def check_profiles_have_photos(profile_string):
     profiles = split_profiles(profile_string)
     
     # Проверяем каждый профиль
-    for profile in profiles:
-        thumb_url, full_url = get_profile_photo(profile)
+    for profile_dict in profiles:
+        thumb_url, full_url = get_profile_photo(profile_dict["name"])
         if thumb_url or full_url:
             return True  # Хотя бы у одного есть фото
     
@@ -349,10 +400,23 @@ def get_recent_profiles(limit=50):
         profiles = split_profiles(profile_name)
         thumb_url, full_url = None, None
         if profiles:
-            thumb_url, full_url = get_profile_photo(profiles[0])
+            thumb_url, full_url = get_profile_photo(profiles[0]["name"])
+        
+        # Создаём детальную информацию по каждому профилю
+        profiles_info = []
+        for p_dict in profiles:
+            p_thumb, p_full = get_profile_photo(p_dict["name"])
+            profiles_info.append({
+                'name': p_dict["name"],
+                'processing': p_dict["processing"],  # Список обработок
+                'has_photo': bool(p_thumb or p_full),
+                'photo_thumb': p_thumb,
+                'photo_full': p_full
+            })
         
         result.append({
             'profile': profile_name,
+            'profiles_info': profiles_info,  # Детальная инфа по каждому профилю
             'date': row['date'].strftime('%d.%m.%Y') if pd.notna(row['date']) else '—',
             'number': row['number'] if pd.notna(row['number']) else '—',
             'has_photo': has_photo,
@@ -541,12 +605,27 @@ def process_dataframe(df):
         profile_name = row['profile'] if pd.notna(row['profile']) else '—'
         profile_thumb, profile_full = get_profile_photo(profile_name) if profile_name != '—' else (None, None)
         
+        # Создаём детальную информацию по каждому профилю в ячейке
+        profiles_info = []
+        if profile_name != '—':
+            profiles = split_profiles(profile_name)
+            for p_dict in profiles:
+                p_thumb, p_full = get_profile_photo(p_dict["name"])
+                profiles_info.append({
+                    'name': p_dict["name"],
+                    'processing': p_dict["processing"],  # Список обработок
+                    'has_photo': bool(p_thumb or p_full),
+                    'photo_thumb': p_thumb,
+                    'photo_full': p_full
+                })
+        
         products.append({
             'number': row['number'] if pd.notna(row['number']) else '—',
             'date': row['date'].strftime('%d.%m.%y') if pd.notna(row['date']) else '—',
             'time': time_str,
             'client': row['client'] if pd.notna(row['client']) else '—',
             'profile': profile_name,
+            'profiles_info': profiles_info,  # Детальная инфа по каждому профилю
             'profile_photo_thumb': profile_thumb,
             'profile_photo_full': profile_full,
             'color': row['color'] if pd.notna(row['color']) else '—',
