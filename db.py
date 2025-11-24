@@ -165,23 +165,51 @@ def delete_profile(name):
 
 def search_profiles(query, order_by='usage_count DESC'):
     """
-    Ищет профили по частичному совпадению имени ИЛИ примечаний
+    Ищет профили по частичному совпадению:
+    1. Имени (наивысший приоритет)
+    2. Примечаний (высокий приоритет)
+    3. Количества на подвес (низкий приоритет)
+    4. Длины (низкий приоритет)
     
     Args:
         query: поисковый запрос
         order_by: порядок сортировки (по умолчанию usage_count DESC)
     
     Returns:
-        list of dict
+        list of dict (отсортировано по приоритету совпадения + order_by)
     """
     conn = get_db_connection()
     try:
-        # Ищем по имени ИЛИ примечаниям (notes)
+        # Ищем по всем полям с приоритетом:
+        # CASE WHEN определяет приоритет совпадения:
+        # 1 = имя, 2 = примечания, 3 = количество/длина
         rows = conn.execute(
-            f'SELECT * FROM profiles WHERE name LIKE ? OR notes LIKE ? ORDER BY {order_by}',
-            (f'%{query}%', f'%{query}%')
+            f'''SELECT *, 
+                   CASE 
+                       WHEN name LIKE ? THEN 1
+                       WHEN notes LIKE ? THEN 2
+                       WHEN CAST(quantity_per_hanger AS TEXT) LIKE ? THEN 3
+                       WHEN CAST(length AS TEXT) LIKE ? THEN 3
+                       ELSE 4
+                   END as match_priority
+                FROM profiles 
+                WHERE name LIKE ? 
+                   OR notes LIKE ? 
+                   OR CAST(quantity_per_hanger AS TEXT) LIKE ? 
+                   OR CAST(length AS TEXT) LIKE ?
+                ORDER BY match_priority ASC, {order_by}''',
+            (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%',
+             f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%')
         ).fetchall()
-        return [dict(row) for row in rows]
+        
+        # Удаляем служебное поле match_priority из результатов
+        result = []
+        for row in rows:
+            d = dict(row)
+            d.pop('match_priority', None)
+            result.append(d)
+        
+        return result
     finally:
         conn.close()
 
