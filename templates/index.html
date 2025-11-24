@@ -1069,8 +1069,11 @@
         
         // Переменные для зума и перемещения
         let currentZoom = 1;
+        let currentX = 0;
+        let currentY = 0;
         let isDraggingPhoto = false;
-        let photoStartX, photoStartY, photoScrollLeft, photoScrollTop;
+        let dragStartX = 0;
+        let dragStartY = 0;
         
         function openPhotoModal(photoUrl, profileName) {
             const modal = document.getElementById('photo-modal');
@@ -1081,9 +1084,11 @@
             info.textContent = `Профиль: ${profileName}`;
             modal.classList.add('active');
             
-            // Сброс зума
+            // Сброс зума и позиции
             currentZoom = 1;
-            img.style.transform = `scale(${currentZoom})`;
+            currentX = 0;
+            currentY = 0;
+            updatePhotoTransform(img);
             img.style.cursor = 'zoom-in';
             
             // Добавляем обработчики зума
@@ -1094,19 +1099,34 @@
             const modal = document.getElementById('photo-modal');
             modal.classList.remove('active');
             currentZoom = 1;
+            currentX = 0;
+            currentY = 0;
+        }
+        
+        function updatePhotoTransform(img) {
+            img.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentZoom})`;
+            img.style.transition = isDraggingPhoto ? 'none' : 'transform 0.15s ease-out';
         }
         
         function setupPhotoZoom(img) {
-            const modalContent = img.parentElement;
-            
             // Зум колёсиком мыши
-            modalContent.onwheel = (e) => {
+            img.parentElement.onwheel = (e) => {
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.15 : 0.15;
-                currentZoom = Math.max(0.5, Math.min(5, currentZoom + delta));
-                img.style.transform = `scale(${currentZoom})`;
-                img.style.cursor = currentZoom > 1 ? 'move' : 'zoom-in';
-                img.style.transition = 'transform 0.1s ease';
+                const delta = e.deltaY > 0 ? -0.2 : 0.2;
+                const newZoom = Math.max(0.5, Math.min(5, currentZoom + delta));
+                
+                // Зум к позиции курсора
+                const rect = img.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left - rect.width / 2;
+                const mouseY = e.clientY - rect.top - rect.height / 2;
+                
+                const zoomRatio = newZoom / currentZoom;
+                currentX = currentX * zoomRatio;
+                currentY = currentY * zoomRatio;
+                currentZoom = newZoom;
+                
+                updatePhotoTransform(img);
+                img.style.cursor = currentZoom > 1 ? 'grab' : 'zoom-in';
             };
             
             // Двойной клик для зума
@@ -1116,44 +1136,39 @@
                     currentZoom = 2.5;
                 } else {
                     currentZoom = 1;
+                    currentX = 0;
+                    currentY = 0;
                 }
-                img.style.transform = `scale(${currentZoom})`;
-                img.style.cursor = currentZoom > 1 ? 'move' : 'zoom-in';
+                updatePhotoTransform(img);
+                img.style.cursor = currentZoom > 1 ? 'grab' : 'zoom-in';
             };
             
-            // Перетаскивание при зуме
+            // Перетаскивание
             img.onmousedown = (e) => {
                 if (currentZoom > 1) {
                     e.preventDefault();
                     isDraggingPhoto = true;
-                    photoStartX = e.pageX - modalContent.offsetLeft;
-                    photoStartY = e.pageY - modalContent.offsetTop;
-                    photoScrollLeft = modalContent.scrollLeft;
-                    photoScrollTop = modalContent.scrollTop;
+                    dragStartX = e.clientX - currentX;
+                    dragStartY = e.clientY - currentY;
                     img.style.cursor = 'grabbing';
                 }
             };
             
-            modalContent.onmousemove = (e) => {
+            document.onmousemove = (e) => {
                 if (!isDraggingPhoto) return;
                 e.preventDefault();
-                const x = e.pageX - modalContent.offsetLeft;
-                const y = e.pageY - modalContent.offsetTop;
-                const walkX = (x - photoStartX) * 2;
-                const walkY = (y - photoStartY) * 2;
-                modalContent.scrollLeft = photoScrollLeft - walkX;
-                modalContent.scrollTop = photoScrollTop - walkY;
+                currentX = e.clientX - dragStartX;
+                currentY = e.clientY - dragStartY;
+                updatePhotoTransform(img);
             };
             
-            modalContent.onmouseup = () => {
-                isDraggingPhoto = false;
-                if (currentZoom > 1) {
-                    img.style.cursor = 'move';
+            document.onmouseup = () => {
+                if (isDraggingPhoto) {
+                    isDraggingPhoto = false;
+                    if (currentZoom > 1) {
+                        img.style.cursor = 'grab';
+                    }
                 }
-            };
-            
-            modalContent.onmouseleave = () => {
-                isDraggingPhoto = false;
             };
         }
         

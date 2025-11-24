@@ -1930,8 +1930,11 @@
         
         // Переменные для зума в catalog
         let catalogZoom = 1;
+        let catalogX = 0;
+        let catalogY = 0;
         let catalogDragging = false;
-        let catalogStartX, catalogStartY, catalogScrollLeft, catalogScrollTop;
+        let catalogDragStartX = 0;
+        let catalogDragStartY = 0;
         
         function viewPhoto(name, photoUrl) {
             const modal = document.getElementById('photo-modal');
@@ -1942,9 +1945,11 @@
             title.textContent = name;
             modal.classList.add('active');
             
-            // Сброс зума
+            // Сброс зума и позиции
             catalogZoom = 1;
-            img.style.transform = `scale(${catalogZoom})`;
+            catalogX = 0;
+            catalogY = 0;
+            updateCatalogTransform(img);
             img.style.cursor = 'zoom-in';
             
             // Добавляем обработчики зума
@@ -1954,62 +1959,71 @@
         function closePhotoModal() {
             document.getElementById('photo-modal').classList.remove('active');
             catalogZoom = 1;
+            catalogX = 0;
+            catalogY = 0;
+        }
+        
+        function updateCatalogTransform(img) {
+            img.style.transform = `translate(${catalogX}px, ${catalogY}px) scale(${catalogZoom})`;
+            img.style.transition = catalogDragging ? 'none' : 'transform 0.15s ease-out';
         }
         
         function setupCatalogPhotoZoom(img) {
-            const modalContent = img.parentElement;
-            
             // Зум колёсиком мыши
-            modalContent.onwheel = (e) => {
+            img.parentElement.onwheel = (e) => {
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.15 : 0.15;
-                catalogZoom = Math.max(0.5, Math.min(5, catalogZoom + delta));
-                img.style.transform = `scale(${catalogZoom})`;
-                img.style.cursor = catalogZoom > 1 ? 'move' : 'zoom-in';
-                img.style.transition = 'transform 0.1s ease';
+                const delta = e.deltaY > 0 ? -0.2 : 0.2;
+                const newZoom = Math.max(0.5, Math.min(5, catalogZoom + delta));
+                
+                const zoomRatio = newZoom / catalogZoom;
+                catalogX = catalogX * zoomRatio;
+                catalogY = catalogY * zoomRatio;
+                catalogZoom = newZoom;
+                
+                updateCatalogTransform(img);
+                img.style.cursor = catalogZoom > 1 ? 'grab' : 'zoom-in';
             };
             
             // Двойной клик для зума
             img.ondblclick = (e) => {
                 e.stopPropagation();
-                catalogZoom = catalogZoom === 1 ? 2.5 : 1;
-                img.style.transform = `scale(${catalogZoom})`;
-                img.style.cursor = catalogZoom > 1 ? 'move' : 'zoom-in';
+                if (catalogZoom === 1) {
+                    catalogZoom = 2.5;
+                } else {
+                    catalogZoom = 1;
+                    catalogX = 0;
+                    catalogY = 0;
+                }
+                updateCatalogTransform(img);
+                img.style.cursor = catalogZoom > 1 ? 'grab' : 'zoom-in';
             };
             
-            // Перетаскивание при зуме
+            // Перетаскивание
             img.onmousedown = (e) => {
                 if (catalogZoom > 1) {
                     e.preventDefault();
                     catalogDragging = true;
-                    catalogStartX = e.pageX - modalContent.offsetLeft;
-                    catalogStartY = e.pageY - modalContent.offsetTop;
-                    catalogScrollLeft = modalContent.scrollLeft;
-                    catalogScrollTop = modalContent.scrollTop;
+                    catalogDragStartX = e.clientX - catalogX;
+                    catalogDragStartY = e.clientY - catalogY;
                     img.style.cursor = 'grabbing';
                 }
             };
             
-            modalContent.onmousemove = (e) => {
+            document.onmousemove = (e) => {
                 if (!catalogDragging) return;
                 e.preventDefault();
-                const x = e.pageX - modalContent.offsetLeft;
-                const y = e.pageY - modalContent.offsetTop;
-                const walkX = (x - catalogStartX) * 2;
-                const walkY = (y - catalogStartY) * 2;
-                modalContent.scrollLeft = catalogScrollLeft - walkX;
-                modalContent.scrollTop = catalogScrollTop - walkY;
+                catalogX = e.clientX - catalogDragStartX;
+                catalogY = e.clientY - catalogDragStartY;
+                updateCatalogTransform(img);
             };
             
-            modalContent.onmouseup = () => {
-                catalogDragging = false;
-                if (catalogZoom > 1) {
-                    img.style.cursor = 'move';
+            document.onmouseup = () => {
+                if (catalogDragging) {
+                    catalogDragging = false;
+                    if (catalogZoom > 1) {
+                        img.style.cursor = 'grab';
+                    }
                 }
-            };
-            
-            modalContent.onmouseleave = () => {
-                catalogDragging = false;
             };
         }
         
