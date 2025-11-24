@@ -504,6 +504,42 @@
             newPhotoFile = null;
         }
         
+        // ESC для закрытия модальных окон
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                // Закрываем edit modal
+                const editModal = document.getElementById('edit-modal');
+                if (editModal && editModal.classList.contains('active')) {
+                    closeEditModal();
+                }
+                // Закрываем view modal
+                const viewModal = document.getElementById('view-modal');
+                if (viewModal && viewModal.classList.contains('active')) {
+                    closeViewModal();
+                }
+                // Закрываем delete confirm modal
+                const deleteModal = document.getElementById('delete-confirm-modal');
+                if (deleteModal && deleteModal.classList.contains('active')) {
+                    closeDeleteModal();
+                }
+                // Закрываем create modal step 1
+                const createStep1 = document.getElementById('create-modal-step1');
+                if (createStep1 && createStep1.classList.contains('active')) {
+                    closeCreateModal();
+                }
+                // Закрываем create modal step 2
+                const createStep2 = document.getElementById('create-modal-step2');
+                if (createStep2 && createStep2.classList.contains('active')) {
+                    closeCreateModal();
+                }
+                // Закрываем upload photo modal
+                const uploadModal = document.getElementById('upload-photo-modal');
+                if (uploadModal && uploadModal.classList.contains('active')) {
+                    closePhotoUpload();
+                }
+            }
+        });
+        
         // === Функции создания нового профиля ===
         let createCropImage = null;
         let createCropData = { x: 0, y: 0, width: 0, height: 0 };
@@ -871,7 +907,7 @@
                     btn.textContent = '✅ Создать профиль';
                     
                     if (data.success) {
-                        alert('✅ Профиль успешно создан!');
+                        showSuccessMessage('✅ Профиль успешно создан!');
                         closeCreateModal();
                         loadCatalog();
                     } else {
@@ -1193,7 +1229,7 @@
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ Фото успешно обновлено!');
+                    showSuccessMessage('✅ Фото успешно обновлено!');
                     closePhotoUpload();
                     closeEditModal();
                     loadCatalog();
@@ -1291,9 +1327,45 @@
             });
         }
         
+        // Показать зелёное сообщение об успехе
+        function showSuccessMessage(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+                font-weight: 600;
+                font-size: 15px;
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
         // Загружаем при старте
         loadCatalog();
     </script>
+    <style>
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+        }
+    </style>
     
     <!-- Модальное окно просмотра фото -->
     <div class="modal" id="photo-modal" onclick="if(event.target === this) closePhotoModal()">

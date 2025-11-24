@@ -304,6 +304,10 @@
             position: sticky;
             top: 0;
         }
+        thead th {
+            text-align: center;
+            font-weight: 600;
+        }
         
         th {
             padding: 12px;
@@ -1050,6 +1054,16 @@
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
                 document.body.classList.remove('fullscreen');
+            }
+        });
+        
+        // ESC для закрытия модального окна фото
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const photoModal = document.getElementById('photo-modal');
+                if (photoModal && photoModal.classList.contains('active')) {
+                    closePhotoModal();
+                }
             }
         });
         
