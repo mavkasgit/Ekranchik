@@ -781,15 +781,26 @@ def api_update_profile(profile_name):
             if not success:
                 return jsonify({'success': False, 'error': 'Не удалось переименовать профиль в БД'})
             
-            # 3. Обновляем данные профиля с новым именем
+            # 3. Обновляем пути до фото если они существуют
+            photo_full = None
+            photo_thumb = None
+            
+            if new_full_path.exists():
+                photo_full = f'/static/images/{new_name}.jpg'
+            if new_thumb_path.exists():
+                photo_thumb = f'/static/images/{new_name}-thumb.jpg'
+            
+            # 4. Обновляем данные профиля с новым именем и новыми путями
             success = db.add_or_update_profile(
                 name=new_name,
                 quantity_per_hanger=quantity_per_hanger,
                 length=length,
-                notes=notes
+                notes=notes,
+                photo_full=photo_full,
+                photo_thumb=photo_thumb
             )
             
-            # 4. Обновляем кэш фото
+            # 5. Обновляем кэш фото
             scan_profile_photos()
             
             if success:
@@ -809,6 +820,26 @@ def api_update_profile(profile_name):
                 return jsonify({'success': True, 'message': f'Профиль "{profile_name}" обновлён'})
             else:
                 return jsonify({'success': False, 'error': 'Не удалось обновить профиль'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/catalog/sync-photos', methods=['POST'])
+def api_sync_photos():
+    """Синхронизирует фото из папки static/images со всеми профилями"""
+    try:
+        result = db.sync_photos_from_folder()
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': f'Обновлено {result["updated"]} профилей, найдено {result["found_files"]} файлов',
+                'stats': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Неизвестная ошибка')
+            })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

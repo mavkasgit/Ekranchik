@@ -269,3 +269,75 @@ def rename_profile(old_name, new_name):
         return False
     finally:
         conn.close()
+
+def sync_photos_from_folder(photos_folder='static/images'):
+    """
+    Синхронизирует фото из папки со всеми профилями в БД
+    Ищет файлы типа: name.jpg, name-thumb.jpg
+    
+    Args:
+        photos_folder: путь к папке с фото
+    
+    Returns:
+        dict: статистика синхронизации {updated: N, found_files: N, total_profiles: N}
+    """
+    conn = get_db_connection()
+    try:
+        photos_path = Path(__file__).parent / photos_folder
+        
+        if not photos_path.exists():
+            print(f"[DB] Папка фото не найдена: {photos_path}")
+            return {'updated': 0, 'found_files': 0, 'total_profiles': 0, 'error': 'Folder not found'}
+        
+        # Получаем все профили
+        profiles = conn.execute('SELECT name FROM profiles').fetchall()
+        total = len(profiles)
+        updated = 0
+        found_files = 0
+        
+        # Для каждого профиля ищем фото
+        for profile in profiles:
+            name = profile['name']
+            
+            # Формируем имена файлов
+            full_name = f"{name}.jpg"
+            thumb_name = f"{name}-thumb.jpg"
+            
+            full_path = photos_path / full_name
+            thumb_path = photos_path / thumb_name
+            
+            photo_full = None
+            photo_thumb = None
+            
+            # Проверяем существуют ли файлы
+            if full_path.exists():
+                photo_full = f"/static/images/{full_name}"
+                found_files += 1
+            
+            if thumb_path.exists():
+                photo_thumb = f"/static/images/{thumb_name}"
+                found_files += 1
+            
+            # Обновляем БД если нашли фото
+            if photo_full or photo_thumb:
+                conn.execute(
+                    'UPDATE profiles SET photo_full = ?, photo_thumb = ?, updated_at = ? WHERE name = ?',
+                    (photo_full, photo_thumb, datetime.now(), name)
+                )
+                updated += 1
+        
+        conn.commit()
+        print(f"[DB] Синхронизация: обновлено {updated} профилей, найдено {found_files} файлов")
+        
+        return {
+            'updated': updated,
+            'found_files': found_files,
+            'total_profiles': total,
+            'success': True
+        }
+    
+    except Exception as e:
+        print(f"[DB ERROR] Ошибка при синхронизации фото: {e}")
+        return {'success': False, 'error': str(e)}
+    finally:
+        conn.close()

@@ -511,7 +511,14 @@
                         <strong id="total-profiles">0</strong> профилей
                     </div>
                     <button class="btn-primary" onclick="openCreateModal()" style="margin-left: 20px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">➕ Создать новый</button>
-                    <button class="btn-primary" onclick="loadCatalog()" style="margin-left: 10px;">🔄 Обновить</button>
+                    <div class="dropdown" style="margin-left: 10px; position: relative; display: inline-block;">
+                        <button class="btn-primary" onclick="loadCatalog(); return false;">🔄 Обновить</button>
+                        <div class="dropdown-content" style="position: absolute; top: calc(100% + 5px); right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000; display: none; overflow: hidden;">
+                            <button onclick="syncPhotosFromFolder()" style="display: block; width: 100%; text-align: left; padding: 12px 16px; border: none; background: white; cursor: pointer; font-size: 14px; transition: all 0.2s; color: #374151; font-weight: 500;">
+                                📁 Синхронизировать фото
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -851,7 +858,58 @@
             document.getElementById('sort-select').addEventListener('change', (e) => {
                 localStorage.setItem('catalog_sort', e.target.value);
             });
+            
+            // Инициализация dropdown меню
+            setupDropdownMenu();
         });
+        
+        // Управление dropdown меню
+        let dropdownHideTimer;
+        
+        function setupDropdownMenu() {
+            const dropdown = document.querySelector('.dropdown');
+            const dropdownContent = document.querySelector('.dropdown-content');
+            const dropdownBtn = dropdownContent?.querySelector('button');
+            
+            if (!dropdown || !dropdownContent) return;
+            
+            // Показываем dropdown при наведении
+            dropdown.addEventListener('mouseenter', () => {
+                clearTimeout(dropdownHideTimer);
+                dropdownContent.style.display = 'block';
+            });
+            
+            // Скрываем dropdown при отведении с задержкой
+            dropdown.addEventListener('mouseleave', () => {
+                dropdownHideTimer = setTimeout(() => {
+                    dropdownContent.style.display = 'none';
+                }, 100);
+            });
+            
+            // Отменяем скрытие если мышь на меню
+            dropdownContent.addEventListener('mouseenter', () => {
+                clearTimeout(dropdownHideTimer);
+                dropdownContent.style.display = 'block';
+            });
+            
+            dropdownContent.addEventListener('mouseleave', () => {
+                dropdownHideTimer = setTimeout(() => {
+                    dropdownContent.style.display = 'none';
+                }, 50);
+            });
+            
+            // Добавляем hover эффект к кнопке в меню
+            if (dropdownBtn) {
+                dropdownBtn.addEventListener('mouseenter', () => {
+                    dropdownBtn.style.background = '#f3f4f6';
+                    dropdownBtn.style.color = '#1f2937';
+                });
+                dropdownBtn.addEventListener('mouseleave', () => {
+                    dropdownBtn.style.background = 'white';
+                    dropdownBtn.style.color = '#374151';
+                });
+            }
+        }
         
         // Переключение режима редактирования
         function toggleEditMode() {
@@ -969,6 +1027,55 @@
                 console.error('Критическая ошибка:', err);
                 alert('Ошибка при сохранении. Проверьте консоль (F12)');
                 loadCatalog();
+            });
+        }
+        
+        // Синхронизация фото из папки static/images
+        function syncPhotosFromFolder() {
+            const dropdownContent = document.querySelector('.dropdown-content');
+            const syncBtn = dropdownContent?.querySelector('button');
+            const originalText = syncBtn?.textContent;
+            
+            if (syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.textContent = '⏳ Синхронизация...';
+            }
+            
+            fetch('/api/catalog/sync-photos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.textContent = originalText;
+                }
+                
+                // Закрываем dropdown
+                if (dropdownContent) {
+                    dropdownContent.style.display = 'none';
+                }
+                
+                if (data.success) {
+                    const stats = data.stats || {};
+                    showSuccessMessage(`✅ ${data.message}`);
+                    console.log('Статистика:', stats);
+                    // Перезагружаем страницу через 1 секунду
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    alert(`❌ Ошибка: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                if (syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.textContent = originalText;
+                }
+                console.error('Ошибка:', err);
+                alert(`❌ Ошибка синхронизации: ${err.message}`);
             });
         }
         
