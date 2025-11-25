@@ -750,25 +750,65 @@ def api_delete_profile(profile_name):
 
 @app.route('/api/catalog/<profile_name>', methods=['PUT'])
 def api_update_profile(profile_name):
-    """API для обновления данных профиля"""
+    """API для обновления данных профиля (с поддержкой переименования)"""
     try:
         data = request.get_json()
         
+        new_name = data.get('name')  # Новое название (если переименование)
         quantity_per_hanger = data.get('quantity_per_hanger')
         length = data.get('length')
         notes = data.get('notes', '').strip()
         
-        success = db.add_or_update_profile(
-            name=profile_name,
-            quantity_per_hanger=quantity_per_hanger,
-            length=length,
-            notes=notes
-        )
-        
-        if success:
-            return jsonify({'success': True, 'message': f'Профиль "{profile_name}" обновлён'})
+        # Если новое название отличается от старого - переименовываем
+        if new_name and new_name != profile_name:
+            # 1. Переименовываем фото в файловой системе
+            old_full_path = PROFILES_DIR / f"{profile_name}.jpg"
+            old_thumb_path = PROFILES_DIR / f"{profile_name}-thumb.jpg"
+            new_full_path = PROFILES_DIR / f"{new_name}.jpg"
+            new_thumb_path = PROFILES_DIR / f"{new_name}-thumb.jpg"
+            
+            # Переименовываем существующие файлы
+            if old_full_path.exists():
+                old_full_path.rename(new_full_path)
+                print(f"[RENAME] Фото переименовано: {profile_name}.jpg -> {new_name}.jpg")
+            
+            if old_thumb_path.exists():
+                old_thumb_path.rename(new_thumb_path)
+                print(f"[RENAME] Превью переименовано: {profile_name}-thumb.jpg -> {new_name}-thumb.jpg")
+            
+            # 2. Переименовываем в БД
+            success = db.rename_profile(profile_name, new_name)
+            if not success:
+                return jsonify({'success': False, 'error': 'Не удалось переименовать профиль в БД'})
+            
+            # 3. Обновляем данные профиля с новым именем
+            success = db.add_or_update_profile(
+                name=new_name,
+                quantity_per_hanger=quantity_per_hanger,
+                length=length,
+                notes=notes
+            )
+            
+            # 4. Обновляем кэш фото
+            scan_profile_photos()
+            
+            if success:
+                return jsonify({'success': True, 'message': f'Профиль "{profile_name}" переименован на "{new_name}"'})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось обновить параметры профиля'})
         else:
-            return jsonify({'success': False, 'error': 'Не удалось обновить профиль'})
+            # Обычное обновление параметров
+            success = db.add_or_update_profile(
+                name=profile_name,
+                quantity_per_hanger=quantity_per_hanger,
+                length=length,
+                notes=notes
+            )
+            
+            if success:
+                return jsonify({'success': True, 'message': f'Профиль "{profile_name}" обновлён'})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось обновить профиль'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 

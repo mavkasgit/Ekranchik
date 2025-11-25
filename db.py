@@ -230,3 +230,42 @@ def update_usage_counts(profile_counts):
         conn.commit()
     finally:
         conn.close()
+
+def rename_profile(old_name, new_name):
+    """
+    Переименовывает профиль в базе данных
+    
+    Args:
+        old_name: старое название
+        new_name: новое название
+    
+    Returns:
+        bool: True если успешно, False если профиль не найден или ошибка
+    """
+    conn = get_db_connection()
+    try:
+        # Проверяем существует ли старый профиль
+        existing = conn.execute('SELECT * FROM profiles WHERE name = ?', (old_name,)).fetchone()
+        if not existing:
+            print(f"[DB] Профиль '{old_name}' не найден")
+            return False
+        
+        # Проверяем нет ли профиля с новым именем
+        duplicate = conn.execute('SELECT * FROM profiles WHERE name = ?', (new_name,)).fetchone()
+        if duplicate:
+            print(f"[DB] Профиль с названием '{new_name}' уже существует")
+            return False
+        
+        # Обновляем название в БД
+        conn.execute(
+            'UPDATE profiles SET name = ?, updated_at = ? WHERE name = ?',
+            (new_name, datetime.now(), old_name)
+        )
+        conn.commit()
+        print(f"[DB] Профиль переименован: '{old_name}' -> '{new_name}'")
+        return True
+    except Exception as e:
+        print(f"[DB ERROR] Ошибка при переименовании профиля: {e}")
+        return False
+    finally:
+        conn.close()
