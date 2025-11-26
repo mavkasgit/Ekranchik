@@ -696,16 +696,21 @@ def api_catalog():
     try:
         search = request.args.get('search', '').strip()
         sort_by = request.args.get('sort', 'updated_at').strip()  # updated_at, name, usage_count, has_photos
+        direction = request.args.get('direction', 'DESC').strip().upper()  # ASC или DESC
+        
+        # Валидируем direction
+        if direction not in ('ASC', 'DESC'):
+            direction = 'DESC'
         
         # Определяем порядок сортировки
         if sort_by == 'name':
-            order_by = 'name COLLATE NOCASE ASC'  # Сортировка по алфавиту (игнорируя регистр)
+            order_by = f'name COLLATE NOCASE {direction}'  # Сортировка по алфавиту (игнорируя регистр)
         elif sort_by == 'usage_count':
-            order_by = 'usage_count DESC'
+            order_by = f'usage_count {direction}'
         elif sort_by == 'has_photos':
-            order_by = 'has_photos DESC'  # С фото в начале
+            order_by = f'has_photos {direction}'  # С фото в начале
         else:  # updated_at (default)
-            order_by = 'updated_at DESC'
+            order_by = f'updated_at {direction}'
         
         if search:
             profiles = db.search_profiles(search, order_by=order_by)
@@ -716,7 +721,8 @@ def api_catalog():
             'success': True,
             'total': len(profiles),
             'profiles': profiles,
-            'sort_by': sort_by
+            'sort_by': sort_by,
+            'direction': direction
         })
     except Exception as e:
         return jsonify({

@@ -530,12 +530,18 @@
                        onkeyup="searchCatalog()">
                 
                 <!-- Сортировка -->
-                <select id="sort-select" onchange="loadCatalog()" 
-                        style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white;">
-                    <option value="updated_at">По дате изменения</option>
-                    <option value="name">По алфавиту</option>
-                    <option value="has_photos">С фото в начале</option>
-                </select>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <select id="sort-select" onchange="loadCatalog()" 
+                            style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white;">
+                        <option value="updated_at">По дате изменения</option>
+                        <option value="name">По алфавиту</option>
+                        <option value="has_photos">С фото в начале</option>
+                    </select>
+                    <button id="sort-direction-btn" onclick="toggleSortDirection()" 
+                            style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white; min-width: 50px; font-weight: 600; color: #374151;">
+                        DESC
+                    </button>
+                </div>
                 
                 <!-- Кнопки управления таблицей (показываем только в table режиме) -->
                 <div id="table-controls" style="display: none; gap: 10px;">
@@ -573,6 +579,9 @@
     </div>
     
     <script>
+        // Переменная для сохранения направления сортировки
+        let sortDirection = localStorage.getItem('catalog_sort_direction') || 'DESC';
+        
         function loadCatalog() {
             const container = document.getElementById('catalog-container');
             const searchValue = document.getElementById('search-input').value.trim();
@@ -583,6 +592,7 @@
             const params = new URLSearchParams();
             if (searchValue) params.append('search', searchValue);
             params.append('sort', sortValue);
+            params.append('direction', sortDirection);
             const url = `/api/catalog?${params.toString()}`;
             
             fetch(url)
@@ -740,6 +750,21 @@
             container.appendChild(table);
         }
         
+        // Переключение направления сортировки
+        function toggleSortDirection() {
+            sortDirection = sortDirection === 'DESC' ? 'ASC' : 'DESC';
+            localStorage.setItem('catalog_sort_direction', sortDirection);
+            
+            // Обновляем кнопку
+            const btn = document.getElementById('sort-direction-btn');
+            btn.textContent = sortDirection;
+            btn.style.background = sortDirection === 'DESC' ? 'white' : '#f0f9ff';
+            btn.style.borderColor = sortDirection === 'DESC' ? '#cbd5e1' : '#3b82f6';
+            
+            // Перезагружаем данные
+            loadCatalog();
+        }
+        
         // Переключение между видами
         function switchView(view) {
             currentView = view;
@@ -852,6 +877,12 @@
             // Восстанавливаем сортировку из localStorage
             const savedSort = localStorage.getItem('catalog_sort') || 'updated_at';
             document.getElementById('sort-select').value = savedSort;
+            
+            // Инициализируем кнопку направления сортировки
+            const directionBtn = document.getElementById('sort-direction-btn');
+            directionBtn.textContent = sortDirection;
+            directionBtn.style.background = sortDirection === 'DESC' ? 'white' : '#f0f9ff';
+            directionBtn.style.borderColor = sortDirection === 'DESC' ? '#cbd5e1' : '#3b82f6';
         });
         
         // Сохраняем сортировку при изменении
