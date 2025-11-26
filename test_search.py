@@ -10,36 +10,38 @@ import db
 print("\n[TEST] Normalization and Search Tests\n")
 print("="*60)
 
-# Test 1: Case insensitive
-print("Test 1: Case insensitive normalization")
-assert db.normalize_text('HELLO') == 'hello', "Failed: lowercase"
-assert db.normalize_text('СУП') == 'cyp', "Failed: cyrillic normalization"
-assert db.normalize_text('CYP') == 'cyp', "Failed: latin normalization"
-print("  PASS: Lowercase and bidirectional conversion works")
+# Test 1: Case insensitive (Cyrillic normalization)
+print("Test 1: Case insensitive normalization to Cyrillic")
+assert db.normalize_text('СУП') == 'суп', "Failed: cyrillic normalization"
+assert db.normalize_text('CYP') == 'сур', "Failed: latin C→с, Y→у, P→р"
+print("  PASS: Все текст нормализуется в строчную Cyrillic")
 
-# Test 2: Cyrillic symbols
-print("Test 2: Cyrillic symbol mapping")
+# Test 2: Cyrillic symbols normalize to lowercase Cyrillic
+print("Test 2: Cyrillic symbol mapping to lowercase")
 mappings = {
-    'С': 'c', 'Р': 'p', 'А': 'a', 'В': 'b', 'Е': 'e', 
-    'К': 'k', 'М': 'm', 'Н': 'h', 'О': 'o', 'Т': 't', 'У': 'y', 'Х': 'x'
+    'А': 'а', 'В': 'в', 'Е': 'е', 'К': 'к', 'М': 'м',
+    'Н': 'н', 'О': 'о', 'П': 'п', 'Р': 'р', 'С': 'с',
+    'Т': 'т', 'У': 'у', 'Х': 'х'
 }
-for cyrillic, latin in mappings.items():
-    assert db.normalize_text(cyrillic) == latin, f"Failed: {cyrillic} -> {latin}"
-print("  PASS: All Cyrillic-to-Latin mappings correct")
+for upper, lower in mappings.items():
+    assert db.normalize_text(upper) == lower, f"Failed: {upper} -> {lower}"
+print("  PASS: All Cyrillic uppercase normalized to lowercase Cyrillic")
 
-# Test 3: Mixed text
-print("Test 3: Mixed Cyrillic and Latin text")
-assert db.normalize_text('СУП') == 'cyp', "Failed: СУП (mapped symbols)"
-assert db.normalize_text('СР') == 'cp', "Failed: СР (both mapped)"
-print("  PASS: Mixed text normalization works")
+# Test 3: Latin letters convert to Cyrillic
+print("Test 3: Latin letters convert to Cyrillic")
+assert db.normalize_text('CA') == 'са', "Failed: C→с, A→а"
+assert db.normalize_text('ПР') == 'пр', "Failed: Cyrillic ПР"
+print("  PASS: Mixed text normalization to Cyrillic works")
 
 # Test 3.5: Bidirectional conversion (Latin finding Cyrillic)
-print("Test 3.5: Bidirectional normalization")
-# CP можем найти только по частичному совпадению с СП (обе нормализуются в cp-like значения)
-assert db.normalize_text('CA') == 'ca', "Failed: CA (latin to normalized)"
-assert db.normalize_text('СА') == 'ca', "Failed: СА (cyrillic to normalized)"
-assert db.normalize_text('CA') == db.normalize_text('СА'), "Failed: C↔С normalization"
-print("  PASS: Latin and Cyrillic normalize to same value")
+print("Test 3.5: Bidirectional search (Latin finds Cyrillic)")
+# CP и СР оба нормализуются в ср (C→с, P→р)
+cp_norm = db.normalize_text('CP')  # 'CP' → (C→с, P→р) = 'ср'
+cr_norm = db.normalize_text('СР')  # 'СР' → (С→с, Р→р) = 'ср'
+assert cp_norm == 'ср', f"Failed: CP should be 'ср' but got '{cp_norm}'"
+assert cr_norm == 'ср', f"Failed: СР should be 'ср' but got '{cr_norm}'"
+assert cp_norm == cr_norm, "Failed: Latin и Cyrillic должны быть одинаковы"
+print("  PASS: Latin и Cyrillic нормализуются одинаково")
 
 # Test 4: Empty strings
 print("Test 4: Empty and None handling")

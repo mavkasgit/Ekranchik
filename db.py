@@ -10,49 +10,56 @@ from pathlib import Path
 
 DB_FILE = Path(__file__).parent / 'profiles.db'
 
-# Маппинг похожих символов на единую нормальную форму (lowercase Latin)
-# Cyrillic и Latin версии одного символа нормализуются в одно значение
+# Маппинг похожих символов на единую нормальную форму (lowercase Cyrillic)
+# Latin и Cyrillic версии одного символа нормализуются в одно значение (Cyrillic)
 CYRILLIC_LATIN_MAP = {
-    # Cyrillic uppercase → lowercase latin
-    'А': 'a', 'а': 'a',
-    'В': 'b', 'в': 'b',
-    'Е': 'e', 'е': 'e',
-    'К': 'k', 'к': 'k',
-    'М': 'm', 'м': 'm',
-    'Н': 'h', 'н': 'h',
-    'О': 'o', 'о': 'o',
-    'П': 'p', 'п': 'p',
-    'Р': 'p', 'р': 'p',  # Р и П оба → p (похожи визуально)
-    'С': 'c', 'с': 'c',
-    'Т': 't', 'т': 't',
-    'У': 'y', 'у': 'y',
-    'Х': 'x', 'х': 'x',
-    # Latin uppercase → lowercase latin
-    'A': 'a', 'B': 'b', 'C': 'c', 'E': 'e', 'H': 'h', 'K': 'k',
-    'M': 'm', 'O': 'o', 'P': 'p', 'T': 't', 'X': 'x', 'Y': 'y',
-    # Latin lowercase (already lowercase, identity map)
-    'a': 'a', 'b': 'b', 'c': 'c', 'e': 'e', 'h': 'h', 'k': 'k',
-    'm': 'm', 'o': 'o', 'p': 'p', 't': 't', 'x': 'x', 'y': 'y',
+    # Cyrillic (uppercase → lowercase)
+    'А': 'а', 'а': 'а',
+    'В': 'в', 'в': 'в',
+    'Е': 'е', 'е': 'е',
+    'К': 'к', 'к': 'к',
+    'М': 'м', 'м': 'м',
+    'Н': 'н', 'н': 'н',
+    'О': 'о', 'о': 'о',
+    'П': 'п', 'п': 'п',
+    'Р': 'р', 'р': 'р',
+    'С': 'с', 'с': 'с',
+    'Т': 'т', 'т': 'т',
+    'У': 'у', 'у': 'у',
+    'Х': 'х', 'х': 'х',
+    # Latin (uppercase и lowercase → lowercase Cyrillic)
+    'A': 'а', 'a': 'а',
+    'B': 'в', 'b': 'в',
+    'C': 'с', 'c': 'с',
+    'E': 'е', 'e': 'е',
+    'H': 'н', 'h': 'н',
+    'K': 'к', 'k': 'к',
+    'M': 'м', 'm': 'м',
+    'O': 'о', 'o': 'о',
+    'P': 'р', 'p': 'р',  # P → р (похожи визуально)
+    'T': 'т', 't': 'т',
+    'X': 'х', 'x': 'х',
+    'Y': 'у', 'y': 'у',
 }
 
 def normalize_text(text):
     """
-    Нормализует текст для поиска (Cyrillic ↔ Latin):
-    - Переводит в единую нормальную форму (lowercase Latin)
+    Нормализует текст для поиска (Latin ↔ Cyrillic):
+    - Переводит в единую нормальную форму (lowercase Cyrillic)
     - Похожие символы из обеих раскладок нормализуются в одно значение
     
     Примеры:
-    'С' (Cyrillic) → 'c' (Latin)
-    'C' (Latin) → 'c' (Latin)
-    'СП' (Cyrillic) → 'cp'
-    'CP' (Latin) → 'cp'
-    'СП' найдет 'CP' и наоборот - оба нормализуются в 'cp'
+    'С' (Cyrillic) → 'с' (lowercase Cyrillic)
+    'C' (Latin) → 'с' (Cyrillic)
+    'СП' (Cyrillic) → 'сп'
+    'CP' (Latin) → 'сp' (обе буквы переходят в кириллицу)
+    'СП' найдет 'CP' и наоборот - оба нормализуются в 'сп'
     
     Args:
         text: исходный текст (может содержать Cyrillic или Latin)
     
     Returns:
-        str: нормализованный текст (lowercase Latin символы)
+        str: нормализованный текст (lowercase Cyrillic символы)
     """
     if not text:
         return ''
@@ -60,7 +67,7 @@ def normalize_text(text):
     text = str(text)
     result = []
     for char in text:
-        # Маппируем через таблицу, если символа нет - берем его как есть и в нижний регистр
+        # Маппируем через таблицу (Latin→Cyrillic, Cyrillic→lowercase Cyrillic)
         mapped = CYRILLIC_LATIN_MAP.get(char, char.lower())
         result.append(mapped)
     
