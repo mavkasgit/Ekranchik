@@ -692,16 +692,18 @@ def api_missing_profiles():
 
 @app.route('/api/catalog')
 def api_catalog():
-    """API для получения всех профилей из справочника с поиском и сортировкой"""
+    """API для получения всех профилей из справочника с поиском и сортировкой (case-insensitive, с нормализацией символов)"""
     try:
         search = request.args.get('search', '').strip()
-        sort_by = request.args.get('sort', 'updated_at').strip()  # updated_at, name, usage_count
+        sort_by = request.args.get('sort', 'updated_at').strip()  # updated_at, name, usage_count, has_photos
         
         # Определяем порядок сортировки
         if sort_by == 'name':
             order_by = 'name COLLATE NOCASE ASC'  # Сортировка по алфавиту (игнорируя регистр)
         elif sort_by == 'usage_count':
             order_by = 'usage_count DESC'
+        elif sort_by == 'has_photos':
+            order_by = 'has_photos DESC'  # С фото в начале
         else:  # updated_at (default)
             order_by = 'updated_at DESC'
         

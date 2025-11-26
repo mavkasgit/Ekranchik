@@ -10,6 +10,50 @@ from pathlib import Path
 
 DB_FILE = Path(__file__).parent / 'profiles.db'
 
+# Маппинг Cyrillic → Latin lookalike characters
+CYRILLIC_LATIN_MAP = {
+    'А': 'A', 'а': 'a',  # А/a → A/a
+    'В': 'B', 'в': 'b',  # В/в → B/b
+    'Е': 'E', 'е': 'e',  # Е/е → E/e
+    'К': 'K', 'к': 'k',  # К/к → K/k
+    'М': 'M', 'м': 'm',  # М/м → M/m
+    'Н': 'H', 'н': 'h',  # Н/н → H/h
+    'О': 'O', 'о': 'o',  # О/о → O/o
+    'П': 'P', 'п': 'p',  # П/п → P/p (похожа на P)
+    'Р': 'P', 'р': 'p',  # Р/р → P/p
+    'С': 'C', 'с': 'c',  # С/с → C/c
+    'Т': 'T', 'т': 't',  # Т/т → T/t
+    'У': 'Y', 'у': 'y',  # У/у → Y/y
+    'Х': 'X', 'х': 'x',  # Х/х → X/x
+}
+
+def normalize_text(text):
+    """
+    Нормализует текст для поиска:
+    - Переводит в нижний регистр
+    - Заменяет похожие Cyrillic символы на Latin эквиваленты
+    
+    Примеры:
+    'Проверка' → 'проверка' → 'проверка'
+    'СЧ' → 'сч' (Cyrillic не меняется)
+    'С' → 'c' (заменяется на Latin C)
+    
+    Args:
+        text: исходный текст
+    
+    Returns:
+        str: нормализованный текст
+    """
+    if not text:
+        return ''
+    
+    text = str(text).lower()
+    result = []
+    for char in text:
+        result.append(CYRILLIC_LATIN_MAP.get(char, char))
+    
+    return ''.join(result)
+
 def get_db_connection():
     """Создает подключение к базе с автокоммитом и timeout"""
     conn = sqlite3.connect(DB_FILE, timeout=10)
@@ -133,7 +177,8 @@ def get_all_profiles(order_by='updated_at DESC', limit=None):
     Получает все профили из базы
     
     Args:
-        order_by: сортировка (например: 'updated_at DESC', 'usage_count DESC')
+        order_by: сортировка (например: 'updated_at DESC', 'usage_count DESC', 'has_photos DESC')
+                 'has_photos' сортирует по наличию фото (с фото сверху)
         limit: ограничение количества
     
     Returns:
@@ -141,7 +186,15 @@ def get_all_profiles(order_by='updated_at DESC', limit=None):
     """
     conn = get_db_connection()
     try:
-        query = f'SELECT * FROM profiles ORDER BY {order_by}'
+        # Поддерживаем специальную сортировку по наличию фото
+        if 'has_photos' in order_by:
+            # has_photos DESC = с фото в начале, has_photos ASC = без фото в начале
+            direction = 'DESC' if 'DESC' in order_by else 'ASC'
+            final_order = f'CASE WHEN photo_thumb IS NOT NULL OR photo_full IS NOT NULL THEN 0 ELSE 1 END {direction}, updated_at DESC'
+            query = f'SELECT * FROM profiles ORDER BY {final_order}'
+        else:
+            query = f'SELECT * FROM profiles ORDER BY {order_by}'
+        
         if limit:
             query += f' LIMIT {limit}'
         
@@ -165,14 +218,16 @@ def delete_profile(name):
 
 def search_profiles(query, order_by='usage_count DESC'):
     """
-    Ищет профили по частичному совпадению:
+    Ищет профили по частичному совпадению (case-insensitive, с нормализацией символов):
     1. Имени (наивысший приоритет)
     2. Примечаний (высокий приоритет)
     3. Количества на подвес (низкий приоритет)
     4. Длины (низкий приоритет)
     
+    Нормализует Cyrillic/Latin похожие символы (С→C, Р→P и т.д.)
+    
     Args:
-        query: поисковый запрос
+        query: поисковый запрос (case-insensitive)
         order_by: порядок сортировки (по умолчанию usage_count DESC)
     
     Returns:
@@ -180,26 +235,29 @@ def search_profiles(query, order_by='usage_count DESC'):
     """
     conn = get_db_connection()
     try:
+        # Нормализуем поисковый запрос
+        normalized_query = normalize_text(query)
+        
         # Ищем по всем полям с приоритетом:
         # CASE WHEN определяет приоритет совпадения:
         # 1 = имя, 2 = примечания, 3 = количество/длина
         rows = conn.execute(
             f'''SELECT *, 
                    CASE 
-                       WHEN name LIKE ? THEN 1
-                       WHEN notes LIKE ? THEN 2
+                       WHEN LOWER(name) LIKE ? THEN 1
+                       WHEN LOWER(notes) LIKE ? THEN 2
                        WHEN CAST(quantity_per_hanger AS TEXT) LIKE ? THEN 3
                        WHEN CAST(length AS TEXT) LIKE ? THEN 3
                        ELSE 4
                    END as match_priority
                 FROM profiles 
-                WHERE name LIKE ? 
-                   OR notes LIKE ? 
+                WHERE LOWER(name) LIKE ? 
+                   OR LOWER(notes) LIKE ? 
                    OR CAST(quantity_per_hanger AS TEXT) LIKE ? 
                    OR CAST(length AS TEXT) LIKE ?
                 ORDER BY match_priority ASC, {order_by}''',
-            (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%',
-             f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%')
+            (f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%',
+             f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%')
         ).fetchall()
         
         # Удаляем служебное поле match_priority из результатов
