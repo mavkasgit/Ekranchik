@@ -1415,20 +1415,32 @@
             btn.disabled = true;
             btn.textContent = '⏳ Сохранение...';
             
+            // Получаем параметры профиля из формы
+            const quantityInput = document.getElementById('edit-quantity');
+            const lengthInput = document.getElementById('edit-length');
+            const notesInput = document.getElementById('edit-notes');
+            
+            const quantity = quantityInput ? quantityInput.value : '';
+            const length = lengthInput ? lengthInput.value : '';
+            const notes = notesInput ? notesInput.value : '';
+            
             const reader = new FileReader();
             reader.onload = (e) => {
                 const cropCanvas = document.getElementById('edit-crop-canvas');
-                const scale = cropCanvas.width / editCropImage.width;
+                const scale = editCropImage.width / cropCanvas.width;
                 
                 const payload = {
                     profile_name: currentEditProfile,
                     image_data: e.target.result,
                     crop_data: {
-                        x: Math.round(editCropData.x / scale),
-                        y: Math.round(editCropData.y / scale),
-                        width: Math.round(editCropData.width / scale),
-                        height: Math.round(editCropData.height / scale)
-                    }
+                        x: Math.round(editCropData.x * scale),
+                        y: Math.round(editCropData.y * scale),
+                        width: Math.round(editCropData.width * scale),
+                        height: Math.round(editCropData.height * scale)
+                    },
+                    quantity_per_hanger: quantity ? parseInt(quantity) : null,
+                    length: length ? parseFloat(length) : null,
+                    notes: notes || ''
                 };
                 
                 fetch('/api/profiles/upload', {
@@ -1872,8 +1884,9 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 // Crop данные - масштабируем к оригиналу
+                // ИСПРАВЛЕНИЕ: scale должна быть ratio оригинала к canvas (умножаем, не делим!)
                 const cropCanvas = document.getElementById('create-crop-canvas');
-                const scale = cropCanvas.width / createCropImage.width;
+                const scale = createCropImage.width / cropCanvas.width;
                 
                 const payload = {
                     profile_name: name,
@@ -1883,10 +1896,10 @@
                     image_data: e.target.result,  // base64
                     rotation: rotation,
                     crop_data: {
-                        x: Math.round(createCropData.x / scale),
-                        y: Math.round(createCropData.y / scale),
-                        width: Math.round(createCropData.width / scale),
-                        height: Math.round(createCropData.height / scale)
+                        x: Math.round(createCropData.x * scale),
+                        y: Math.round(createCropData.y * scale),
+                        width: Math.round(createCropData.width * scale),
+                        height: Math.round(createCropData.height * scale)
                     }
                 };
                 
@@ -2249,12 +2262,13 @@
             const notes = notesInput ? notesInput.value : '';
             
             // Масштабируем координаты кропа к оригинальному размеру
-            const scale = cropCanvas.width / cropImage.width;
+            // ИСПРАВЛЕНИЕ: scale должна быть ratio оригинала к canvas (умножаем, не делим!)
+            const scale = cropImage.width / cropCanvas.width;
             const scaledCrop = {
-                x: cropData.x / scale,
-                y: cropData.y / scale,
-                width: cropData.width / scale,
-                height: cropData.height / scale
+                x: Math.round(cropData.x * scale),
+                y: Math.round(cropData.y * scale),
+                width: Math.round(cropData.width * scale),
+                height: Math.round(cropData.height * scale)
             };
             
             // Получаем параметры

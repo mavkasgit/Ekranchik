@@ -350,9 +350,10 @@ def split_profiles(profile_string):
 def get_profile_photo(profile_name):
     """Проверяет наличие фото профиля и возвращает (thumb_url, full_url) из кэша
     
-    Двухэтапный поиск:
-    1. Точное совпадение (любой регистр, но точное написание букв)
-    2. Если не найдено - нормализуем обе стороны (Latin→Cyrillic, case-insensitive)
+    Трёхэтапный поиск:
+    1. Точное совпадение (case-insensitive, но точные буквы)
+    2. Нормализованное совпадение (Latin→Cyrillic)
+    3. Частичное совпадение по цифрам (только если одно совпадение)
     """
     if not profile_name or pd.isna(profile_name):
         return None, None
@@ -371,6 +372,25 @@ def get_profile_photo(profile_name):
         normalized_cached = normalize_text_app(cached_profile)
         if normalized_name == normalized_cached:
             return photo_info['thumb'], photo_info['full']
+    
+    # ЭТАП 3: Частичное совпадение по цифрам
+    # Извлекаем ВСЕ цифры из профиля Excel
+    import re
+    digits_in_name = ''.join(re.findall(r'\d', clean_name))
+    
+    if digits_in_name:
+        # Ищем профили в БД содержащие эти цифры
+        matches = []
+        for cached_profile, photo_info in _photos_cache.items():
+            digits_in_cached = ''.join(re.findall(r'\d', cached_profile))
+            if digits_in_cached == digits_in_name:
+                matches.append(photo_info)
+        
+        # Если ровно ОДНО совпадение - показываем его фото
+        if len(matches) == 1:
+            photo_info = matches[0]
+            return photo_info['thumb'], photo_info['full']
+        # Если несколько или ноль совпадений - ничего не показываем
     
     return None, None
 
@@ -1135,6 +1155,21 @@ def catalog_page():
     """Страница справочника профилей с фото и параметрами"""
     return render_template('catalog.html')
 
+@app.route('/api/cache/refresh', methods=['POST'])
+def refresh_cache():
+    """Ручное обновление кэша фото профилей"""
+    try:
+        scan_profile_photos()
+        return jsonify({
+            'success': True,
+            'message': 'Кэш фото обновлён'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/profiles/upload', methods=['POST'])
 def upload_profile_photo():
     """Загрузка фото профиля с кропом - сохраняет 2 файла + запись в БД"""
@@ -1185,16 +1220,24 @@ def upload_profile_photo():
         img_thumb = img_original.copy()
         
         # Применяем кроп (если указан)
-        if crop_data:
-            x = int(crop_data.get('x', 0))
-            y = int(crop_data.get('y', 0))
+        if crop_data and isinstance(crop_data, dict):
+            x = max(0, int(crop_data.get('x', 0)))
+            y = max(0, int(crop_data.get('y', 0)))
             width = int(crop_data.get('width', img_thumb.width))
             height = int(crop_data.get('height', img_thumb.height))
+            
+            # Проверяем корректность координат
+            x = min(x, img_thumb.width - 1)
+            y = min(y, img_thumb.height - 1)
+            width = max(1, min(width, img_thumb.width - x))
+            height = max(1, min(height, img_thumb.height - y))
+            
             print(f"[UPLOAD] Кроп для превью: x={x}, y={y}, width={width}, height={height}")
             
-            # Валидация координат
+            # Применяем кроп если размеры валидны
             if width > 0 and height > 0:
-                img_thumb = img_thumb.crop((x, y, x + width, y + height))
+                crop_box = (x, y, x + width, y + height)
+                img_thumb = img_thumb.crop(crop_box)
                 print(f"[UPLOAD] Кроп применён, размер после: {img_thumb.width}x{img_thumb.height}")
             else:
                 print(f"[UPLOAD] WARNING: Неверные размеры кропа, используем оригинал")
@@ -1202,11 +1245,14 @@ def upload_profile_photo():
         img_thumb = convert_to_rgb(img_thumb)
         
         # Поворачиваем превью если нужно (ТОЛЬКО превью, полное фото не трогаем!)
-        rotation = data.get('rotation', 0)
-        if rotation != 0:
+        rotation = int(data.get('rotation', 0))
+        if rotation != 0 and rotation % 360 != 0:
             # PIL использует поворот против часовой стрелки, нам нужно по часовой
-            img_thumb = img_thumb.rotate(-rotation, expand=True)
-            print(f"[UPLOAD] Превью повернуто на {rotation}°")
+            # Поворот только на 90, 180, 270 градусов
+            rotation = rotation % 360
+            if rotation in (90, 180, 270):
+                img_thumb = img_thumb.rotate(-rotation, expand=False)
+                print(f"[UPLOAD] Превью повернуто на {rotation}°")
         
         # Resize до 300px (для превью) - сохраняем пропорции
         max_size_thumb = 300
