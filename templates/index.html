@@ -666,11 +666,9 @@
             const unloadingLimit = document.getElementById('unloading-limit').value;
             
             if (limit) params.append('limit', limit);
-            params.append('days', '365'); // Всегда берем за год
-            if (noTimeFilter) {
-                params.append('no_time_filter', 'true');
-                if (loadingLimit) params.append('loading_limit', loadingLimit);
-            }
+            params.append('days', '0'); // Берем ВСЕ записи без фильтра по дате
+            params.append('no_time_filter', 'true'); // БЕЗ фильтра по времени
+            if (loadingLimit) params.append('loading_limit', loadingLimit);
             if (unloadFilter) {
                 params.append('unload_filter', 'true');
                 if (unloadingLimit) params.append('unloading_limit', unloadingLimit);

@@ -191,12 +191,20 @@ def get_dataframe(full_dataset=False):
             print(f"[ERROR] Ошибка: файл не найден: {excel_file}")
             return None
     else:
-        # Ищем любой .xlsm файл в директории
-        files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
-        if not files:
-            print(f"[ERROR] Ошибка: .xlsm файлы не найдены в {EXCEL_DIR}")
-            return None
-        excel_file = EXCEL_DIR / files[0]
+        # Ищем конкретный файл из EXCEL_FILE_PATH или первый .xlsm
+        excel_path = os.getenv('EXCEL_FILE_PATH', '')
+        if excel_path:
+            # Берем имя файла из полного пути
+            excel_filename = os.path.basename(excel_path)
+        else:
+            # Если не задана переменная - ищем первый .xlsm файл
+            files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
+            if not files:
+                print(f"[ERROR] Ошибка: .xlsm файлы не найдены в {EXCEL_DIR}")
+                return None
+            excel_filename = files[0]
+        
+        excel_file = EXCEL_DIR / excel_filename
     current_mtime = os.path.getmtime(excel_file)
     
     # Проверяем временный файл (если Excel открыт)
@@ -542,13 +550,15 @@ def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, 
         df = df[(pd.notna(df['date'])) | (pd.notna(df['number']))]
         print(f"[DEBUG] После фильтра (дата или номер): {len(df)} строк")
         
-        # Фильтр по дате (последние N дней) - только для строк с датой
-        if days:
+        # Фильтр по дате (последние N дней) - только если не отключен no_time_filter
+        if days and not no_time_filter:
             cutoff_date = datetime.now() - timedelta(days=days)
             df['date'] = pd.to_datetime(df['date'], errors='coerce')
             # Оставляем строки: (дата >= cutoff) ИЛИ (дата пустая, но есть номер)
             df = df[(df['date'] >= cutoff_date) | (pd.isna(df['date']) & pd.notna(df['number']))]
             print(f"[DEBUG] После фильтра по дате ({days} дней): {len(df)} строк")
+        else:
+            print(f"[DEBUG] Фильтр по дате отключен - показываем ВСЕ {len(df)} строк")
         
         loading_products = []
         unloading_products = []
@@ -589,10 +599,13 @@ def get_products(limit=None, days=2, no_time_filter=False, unload_filter=False, 
             unload_limit = unloading_limit if unloading_limit else 10
             df = df.tail(unload_limit)
         
-        # Обычный режим
+        # Обычный режим - БЕЗ фильтра, показываем ВСЕ
         else:
+            # Без фильтров - просто берем все данные (или limit если указан)
             if limit:
                 df = df.tail(limit)
+            else:
+                df = df  # Все данные
             df = df.iloc[::-1]
         
         products = process_dataframe(df)
@@ -641,11 +654,13 @@ def process_dataframe(df):
                     time_str = time_val
         
         profile_name = row['profile'] if pd.notna(row['profile']) else '—'
-        profile_thumb, profile_full = get_profile_photo(profile_name) if profile_name != '—' else (None, None)
+        # Нормализуем дефисы (- и — оба считаем пустым значением)
+        is_empty_profile = not profile_name or profile_name in ('-', '—', '--')
+        profile_thumb, profile_full = get_profile_photo(profile_name) if not is_empty_profile else (None, None)
         
         # Создаём детальную информацию по каждому профилю в ячейке
         profiles_info = []
-        if profile_name != '—':
+        if not is_empty_profile:
             profiles = split_profiles(profile_name)
             for p_dict in profiles:
                 p_thumb, p_full = get_profile_photo(p_dict["name"])
@@ -681,8 +696,8 @@ def index():
 @app.route('/api/products')
 def api_products():
     limit = request.args.get('limit', type=int)
-    days = request.args.get('days', default=2, type=int)
-    no_time_filter = request.args.get('no_time_filter', default='false') == 'true'
+    days = request.args.get('days', default=0, type=int)
+    no_time_filter = request.args.get('no_time_filter', default='true') == 'true'
     unload_filter = request.args.get('unload_filter', default='false') == 'true'
     loading_limit = request.args.get('loading_limit', type=int)
     unloading_limit = request.args.get('unloading_limit', type=int)
@@ -1014,18 +1029,42 @@ def api_file_status():
                     'message': f'Файл не найден: {EXCEL_FILENAME}'
                 })
         else:
-            files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
-            if not files:
-                return jsonify({
-                    'success': False,
-                    'status': 'not_found',
-                    'message': 'Excel файл не найден'
-                })
-            excel_file = EXCEL_DIR / files[0]
+            # Ищем конкретный файл из EXCEL_FILE_PATH
+            excel_path = os.getenv('EXCEL_FILE_PATH', '')
+            if excel_path:
+                excel_filename = os.path.basename(excel_path)
+            else:
+                files = [f for f in os.listdir(EXCEL_DIR) if f.endswith('.xlsm') and not f.startswith('~$')]
+                if not files:
+                    return jsonify({
+                        'success': False,
+                        'status': 'not_found',
+                        'message': 'Excel файл не найден'
+                    })
+                excel_filename = files[0]
+            
+            excel_file = EXCEL_DIR / excel_filename
         
-        # Проверяем временный файл (Excel открыт?)
-        temp_file = EXCEL_DIR / f"~${excel_file.name}"
-        is_open = temp_file.exists()
+        # Проверяем временный файл на ХОСТЕ (извлекаем папку из полного пути)
+        excel_path = os.getenv('EXCEL_FILE_PATH', '')
+        if excel_path:
+            # Извлекаем папку из полного пути (D:\path\to\folder\file.xlsm → D:\path\to\folder)
+            import pathlib
+            excel_host_dir = str(pathlib.Path(excel_path).parent)
+        else:
+            excel_host_dir = None
+        
+        # Пытаемся найти временный файл в папке хоста
+        is_open = False
+        if excel_host_dir:
+            try:
+                import pathlib
+                # На Windows временный файл начинается с ~$
+                # Ищем ВСЕ файлы с префиксом ~$ (может быть разная кодировка имени)
+                temp_files = list(pathlib.Path(excel_host_dir).glob("~$*"))
+                is_open = len(temp_files) > 0
+            except Exception as e:
+                is_open = False
         
         # Получаем время последнего изменения
         import datetime

@@ -7,8 +7,10 @@
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+import os
 
-DB_FILE = Path(__file__).parent / 'profiles.db'
+# БД хранится в volume для сохранения данных между перезагрузками
+DB_FILE = Path(os.getenv('DB_PATH', '/app/data/profiles.db'))
 
 # Маппинг похожих символов на единую нормальную форму (lowercase Cyrillic)
 # Latin и Cyrillic версии одного символа нормализуются в одно значение (Cyrillic)
@@ -36,19 +38,21 @@ def normalize_text(text):
     Нормализует текст для поиска (Latin ↔ Cyrillic):
     - Переводит в единую нормальную форму (lowercase Cyrillic)
     - Похожие символы из обеих раскладок нормализуются в одно значение
+    - УБИРАЕТ дефисы, пробелы, точки для гибкого поиска
     
     Примеры:
     'С' (Cyrillic) → 'с' (lowercase Cyrillic)
     'C' (Latin) → 'с' (Cyrillic)
     'СП' (Cyrillic) → 'сп'
     'CP' (Latin) → 'сp' (обе буквы переходят в кириллицу)
-    'СП' найдет 'CP' и наоборот - оба нормализуются в 'сп'
+    'ALS-345' → 'алс345' (Latin→Cyrillic, без дефиса)
+    'als 345' → 'алс345' (без пробела)
     
     Args:
         text: исходный текст (может содержать Cyrillic или Latin)
     
     Returns:
-        str: нормализованный текст (lowercase Cyrillic символы)
+        str: нормализованный текст (lowercase Cyrillic символы без спецсимволов)
     """
     if not text:
         return ''
@@ -56,6 +60,9 @@ def normalize_text(text):
     text = str(text)
     result = []
     for char in text:
+        # Пропускаем дефисы, пробелы, точки, подчеркивания для гибкого поиска
+        if char in ('-', ' ', '.', '_', '/', '\\'):
+            continue
         # Маппируем через таблицу (Latin→Cyrillic, Cyrillic→lowercase Cyrillic)
         mapped = CYRILLIC_LATIN_MAP.get(char, char.lower())
         result.append(mapped)
@@ -243,37 +250,43 @@ def search_profiles(query, order_by='usage_count DESC'):
     """
     conn = get_db_connection()
     try:
-        # Нормализуем поисковый запрос
+        # Нормализуем поисковый запрос (убираем дефисы, Latin→Cyrillic)
         normalized_query = normalize_text(query)
         
-        # Ищем по всем полям с приоритетом:
-        # CASE WHEN определяет приоритет совпадения:
-        # 1 = имя, 2 = примечания, 3 = количество/длина
-        rows = conn.execute(
-            f'''SELECT *, 
-                   CASE 
-                       WHEN LOWER(name) LIKE ? THEN 1
-                       WHEN LOWER(notes) LIKE ? THEN 2
-                       WHEN CAST(quantity_per_hanger AS TEXT) LIKE ? THEN 3
-                       WHEN CAST(length AS TEXT) LIKE ? THEN 3
-                       ELSE 4
-                   END as match_priority
-                FROM profiles 
-                WHERE LOWER(name) LIKE ? 
-                   OR LOWER(notes) LIKE ? 
-                   OR CAST(quantity_per_hanger AS TEXT) LIKE ? 
-                   OR CAST(length AS TEXT) LIKE ?
-                ORDER BY match_priority ASC, {order_by}''',
-            (f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%',
-             f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%', f'%{normalized_query}%')
-        ).fetchall()
+        # Загружаем ВСЕ профили
+        all_profiles = conn.execute(f'SELECT * FROM profiles ORDER BY {order_by}').fetchall()
         
-        # Удаляем служебное поле match_priority из результатов
+        # Фильтруем в памяти с нормализацией КАЖДОГО поля
         result = []
-        for row in rows:
-            d = dict(row)
-            d.pop('match_priority', None)
-            result.append(d)
+        for row in all_profiles:
+            profile = dict(row)
+            
+            # Нормализуем поля для сравнения
+            norm_name = normalize_text(profile.get('name', ''))
+            norm_notes = normalize_text(profile.get('notes', ''))
+            norm_qty = normalize_text(str(profile.get('quantity_per_hanger', '')))
+            norm_length = normalize_text(str(profile.get('length', '')))
+            
+            # Проверяем совпадение с приоритетом
+            match_priority = None
+            if normalized_query in norm_name:
+                match_priority = 1  # Имя - высший приоритет
+            elif normalized_query in norm_notes:
+                match_priority = 2  # Примечания
+            elif normalized_query in norm_qty or normalized_query in norm_length:
+                match_priority = 3  # Количество/длина
+            
+            # Добавляем только совпавшие
+            if match_priority:
+                profile['match_priority'] = match_priority
+                result.append(profile)
+        
+        # Сортируем по приоритету (меньше = выше)
+        result.sort(key=lambda p: p.get('match_priority', 999))
+        
+        # Удаляем служебное поле
+        for profile in result:
+            profile.pop('match_priority', None)
         
         return result
     finally:
