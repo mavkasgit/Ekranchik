@@ -1,0 +1,17 @@
+.git
+.gitignore
+.factory
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.venv
+venv
+*.db
+profiles.db
+.DS_Store
+archive
+DOCKER_MIGRATION_PLAN.md
+README_DOCKER.md
+.env.example
