@@ -19,6 +19,33 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Маппинг для двухэтапного поиска профилей (Latin/Cyrillic → lowercase Cyrillic)
+CYRILLIC_LATIN_MAP_APP = {
+    # Cyrillic uppercase → lowercase
+    'А': 'а', 'В': 'в', 'Е': 'е', 'К': 'к', 'М': 'м', 'Н': 'н',
+    'О': 'о', 'П': 'п', 'Р': 'р', 'С': 'с', 'Т': 'т', 'У': 'у',
+    'Х': 'х', 'Д': 'д', 'З': 'з', 'Л': 'л',
+    # Cyrillic lowercase (identity)
+    'а': 'а', 'в': 'в', 'е': 'е', 'к': 'к', 'м': 'м', 'н': 'н',
+    'о': 'о', 'п': 'п', 'р': 'р', 'с': 'с', 'т': 'т', 'у': 'у',
+    'х': 'х', 'д': 'д', 'з': 'з', 'л': 'л',
+    # Latin uppercase → lowercase Cyrillic
+    'A': 'а', 'B': 'в', 'C': 'с', 'D': 'д', 'E': 'е', 'H': 'н',
+    'K': 'к', 'M': 'м', 'O': 'о', 'P': 'р', 'T': 'т', 'X': 'х',
+    'Y': 'у', 'Z': 'з', 'L': 'л',
+    # Latin lowercase → lowercase Cyrillic
+    'a': 'а', 'b': 'в', 'c': 'с', 'd': 'д', 'e': 'е', 'h': 'н',
+    'k': 'к', 'm': 'м', 'o': 'о', 'p': 'р', 't': 'т', 'x': 'х',
+    'y': 'у', 'z': 'з', 'l': 'л'
+}
+
+def normalize_text_app(text):
+    """Нормализует текст для поиска профилей (Latin/Cyrillic → lowercase Cyrillic)"""
+    if not text:
+        return ''
+    text = str(text)
+    return ''.join(CYRILLIC_LATIN_MAP_APP.get(c, c.lower()) for c in text)
+
 # Определяем директорию где лежит app.py
 BASE_DIR = Path(__file__).parent.absolute()
 
@@ -313,18 +340,29 @@ def split_profiles(profile_string):
     return profiles
 
 def get_profile_photo(profile_name):
-    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url) из кэша"""
+    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url) из кэша
+    
+    Двухэтапный поиск:
+    1. Точное совпадение (любой регистр, но точное написание букв)
+    2. Если не найдено - нормализуем обе стороны (Latin→Cyrillic, case-insensitive)
+    """
     if not profile_name or pd.isna(profile_name):
         return None, None
     
-    # Очищаем имя и приводим к lowercase для поиска
     clean_name = str(profile_name).strip()
-    profile_key = clean_name.lower()
     
-    # Проверяем кэш
+    # ЭТАП 1: Точное совпадение (case-insensitive, но точные буквы)
+    profile_key = clean_name.lower()
     if profile_key in _photos_cache:
         photo_info = _photos_cache[profile_key]
         return photo_info['thumb'], photo_info['full']
+    
+    # ЭТАП 2: Нормализуем и ищем (Latin→Cyrillic)
+    normalized_name = normalize_text_app(clean_name)
+    for cached_profile, photo_info in _photos_cache.items():
+        normalized_cached = normalize_text_app(cached_profile)
+        if normalized_name == normalized_cached:
+            return photo_info['thumb'], photo_info['full']
     
     return None, None
 
