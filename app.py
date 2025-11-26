@@ -1179,10 +1179,16 @@ def upload_profile_photo():
         image_data = data.get('image_data')  # base64
         crop_data = data.get('crop_data')  # {x, y, width, height}
         
+        print(f"\n[UPLOAD] Получены данные: profile_name={profile_name}")
+        print(f"[UPLOAD] image_data size: {len(image_data) if image_data else 0} bytes")
+        print(f"[UPLOAD] crop_data: {crop_data}")
+        
         # Дополнительные параметры для БД
         quantity_per_hanger = data.get('quantity_per_hanger')
         length = data.get('length')
         notes = data.get('notes', '').strip()
+        
+        print(f"[UPLOAD] quantity_per_hanger={quantity_per_hanger}, length={length}, notes={notes}")
         
         if not profile_name or not image_data:
             return jsonify({'success': False, 'error': 'Не указано имя профиля или изображение'})
@@ -1269,7 +1275,15 @@ def upload_profile_photo():
         url_full = f'/static/images/{clean_name}.jpg'
         url_thumb = f'/static/images/{clean_name}-thumb.jpg'
         
-        db.add_or_update_profile(
+        print(f"[UPLOAD] Готовим к сохранению в БД:")
+        print(f"[UPLOAD]   name: {clean_name}")
+        print(f"[UPLOAD]   photo_full: {url_full}")
+        print(f"[UPLOAD]   photo_thumb: {url_thumb}")
+        print(f"[UPLOAD]   quantity_per_hanger: {quantity_per_hanger}")
+        print(f"[UPLOAD]   length: {length}")
+        print(f"[UPLOAD]   notes: {notes}")
+        
+        result = db.add_or_update_profile(
             name=clean_name,
             quantity_per_hanger=quantity_per_hanger,
             length=length,
@@ -1277,7 +1291,7 @@ def upload_profile_photo():
             photo_thumb=url_thumb,
             photo_full=url_full
         )
-        print(f"[UPLOAD] Профиль '{clean_name}' сохранён в БД")
+        print(f"[UPLOAD] Профиль '{clean_name}' сохранён в БД (result={result})")
         
         # Обновляем кэш фото
         scan_profile_photos()
