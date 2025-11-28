@@ -396,7 +396,7 @@ def split_profiles(profile_string):
     return profiles
 
 def get_profile_photo(profile_name):
-    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url) из кэша
+    """Проверяет наличие фото профиля и возвращает (thumb_url, full_url, original_name) из кэша
     
     Трёхэтапный поиск:
     1. Точное совпадение (case-insensitive, но точные буквы)
@@ -404,7 +404,7 @@ def get_profile_photo(profile_name):
     3. Частичное совпадение по цифрам (только если одно совпадение)
     """
     if not profile_name or pd.isna(profile_name):
-        return None, None
+        return None, None, None
     
     clean_name = str(profile_name).strip()
     
@@ -412,14 +412,14 @@ def get_profile_photo(profile_name):
     profile_key = clean_name.lower()
     if profile_key in _photos_cache:
         photo_info = _photos_cache[profile_key]
-        return photo_info['thumb'], photo_info['full']
+        return photo_info['thumb'], photo_info['full'], photo_info['original_name']
     
     # ЭТАП 2: Нормализуем и ищем (Latin→Cyrillic)
     normalized_name = normalize_text_app(clean_name)
     for cached_profile, photo_info in _photos_cache.items():
         normalized_cached = normalize_text_app(cached_profile)
         if normalized_name == normalized_cached:
-            return photo_info['thumb'], photo_info['full']
+            return photo_info['thumb'], photo_info['full'], photo_info['original_name']
     
     # ЭТАП 3: Частичное совпадение по цифрам
     # Извлекаем ВСЕ цифры из профиля Excel
@@ -437,10 +437,10 @@ def get_profile_photo(profile_name):
         # Если ровно ОДНО совпадение - показываем его фото
         if len(matches) == 1:
             photo_info = matches[0]
-            return photo_info['thumb'], photo_info['full']
+            return photo_info['thumb'], photo_info['full'], photo_info['original_name']
         # Если несколько или ноль совпадений - ничего не показываем
     
-    return None, None
+    return None, None, None
 
 def check_profiles_have_photos(profile_string):
     """
@@ -724,16 +724,17 @@ def process_dataframe(df):
         profile_name = row['profile'] if pd.notna(row['profile']) else '—'
         # Нормализуем дефисы (- и — оба считаем пустым значением)
         is_empty_profile = not profile_name or profile_name in ('-', '—', '--')
-        profile_thumb, profile_full = get_profile_photo(profile_name) if not is_empty_profile else (None, None)
+        profile_thumb, profile_full, canonical_name = get_profile_photo(profile_name) if not is_empty_profile else (None, None, None)
         
         # Создаём детальную информацию по каждому профилю в ячейке
         profiles_info = []
         if not is_empty_profile:
             profiles = split_profiles(profile_name)
             for p_dict in profiles:
-                p_thumb, p_full = get_profile_photo(p_dict["name"])
+                p_thumb, p_full, p_canonical = get_profile_photo(p_dict["name"])
                 profiles_info.append({
                     'name': p_dict["name"],
+                    'canonical_name': p_canonical or p_dict["name"],
                     'processing': p_dict["processing"],  # Список обработок
                     'has_photo': bool(p_thumb or p_full),
                     'photo_thumb': p_thumb,
@@ -746,6 +747,7 @@ def process_dataframe(df):
             'time': time_str,
             'client': row['client'] if pd.notna(row['client']) else '—',
             'profile': profile_name,
+            'canonical_name': canonical_name or profile_name,
             'profiles_info': profiles_info,  # Детальная инфа по каждому профилю
             'profile_photo_thumb': profile_thumb,
             'profile_photo_full': profile_full,
