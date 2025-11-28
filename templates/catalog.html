@@ -583,6 +583,7 @@
         let sortDirection = localStorage.getItem('catalog_sort_direction') || 'DESC';
         
         function loadCatalog() {
+            console.log('[CATALOG] Загружаем справочник...');
             const container = document.getElementById('catalog-container');
             const searchValue = document.getElementById('search-input').value.trim();
             const sortValue = document.getElementById('sort-select').value;
@@ -595,17 +596,21 @@
             params.append('direction', sortDirection);
             const url = `/api/catalog?${params.toString()}`;
             
+            console.log('[CATALOG] URL запроса:', url);
             fetch(url)
                 .then(res => res.json())
                 .then(data => {
+                    console.log('[CATALOG] Получены данные:', data);
                     if (!data.success) {
                         container.innerHTML = '<div class="loading" style="color: red;">Ошибка загрузки</div>';
                         return;
                     }
                     
+                    console.log('[CATALOG] Всего профилей:', data.total);
                     document.getElementById('total-profiles').textContent = data.total;
                     
                     if (data.profiles.length === 0) {
+                        console.log('[CATALOG] Справочник пуст!');
                         container.innerHTML = `
                             <div class="empty-state">
                                 <h3>📭 Справочник пуст</h3>
@@ -615,12 +620,17 @@
                         return;
                     }
                     
+                    console.log('[CATALOG] Отрисовываем профили, режим:', currentView);
+                    console.log('[CATALOG] Первые 3 профиля:', data.profiles.slice(0, 3));
+                    
                     // Рендерим в зависимости от текущего режима
                     if (currentView === 'table') {
                         renderTableView(data.profiles, container);
                     } else {
                         renderGridView(data.profiles, container);
                     }
+                    
+                    console.log('[CATALOG] Отрисовка завершена!');
                 })
                 .catch(err => {
                     console.error('Ошибка:', err);
@@ -637,12 +647,15 @@
                         const card = document.createElement('div');
                         card.className = 'profile-card';
                         
-                        const photoHtml = profile.photo_thumb 
-                            ? `<img src="${profile.photo_thumb}" alt="${profile.name}">`
+                        // Cache busting: добавляем timestamp к путям фото
+                        const thumbUrl = profile.photo_thumb ? profile.photo_thumb + '?v=' + Date.now() : null;
+                        const photoHtml = thumbUrl 
+                            ? `<img src="${thumbUrl}" alt="${profile.name}">`
                             : '<div class="no-photo">📷</div>';
                         
-                        const photoClickHandler = profile.photo_full 
-                            ? `onclick="viewPhoto('${profile.name}', '${profile.photo_full}')"`
+                        const fullUrl = profile.photo_full ? profile.photo_full + '?v=' + Date.now() : null;
+                        const photoClickHandler = fullUrl 
+                            ? `onclick="viewPhoto('${profile.name}', '${fullUrl}')"`
                             : '';
                         
                         const quantityHtml = profile.quantity_per_hanger 
@@ -1169,6 +1182,7 @@
         let initialCropData = null;
         
         function editProfile(profileData) {
+            console.log('[EDIT] Редактируем профиль:', profileData);
             currentEditProfile = profileData.name;
             currentEditProfileData = profileData;
             
@@ -1443,6 +1457,7 @@
                     notes: notes || ''
                 };
                 
+                console.log('[UPLOAD] Отправляем на сервер:', payload);
                 fetch('/api/profiles/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1450,13 +1465,16 @@
                 })
                 .then(res => res.json())
                 .then(data => {
+                    console.log('[UPLOAD] Ответ сервера:', data);
                     btn.disabled = false;
                     btn.textContent = '✅ Сохранить фото';
                     
                     if (data.success) {
+                        console.log('[UPLOAD] Успех! Перезагружаем каталог...');
                         showSuccessMessage('✅ Фото обновлено!');
                         closeEditPhotoModal();
                         closeEditModal();
+                        console.log('[UPLOAD] Вызываем loadCatalog()');
                         loadCatalog();
                     } else {
                         alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));

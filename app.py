@@ -1,4 +1,15 @@
 from flask import Flask, render_template, jsonify, request, send_from_directory
+from urllib.parse import unquote
+# -*- coding: utf-8 -*-
+import sys
+import io
+
+# Установляем UTF-8 кодировку для всего приложения (важно на Windows)
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import pandas as pd
 from datetime import datetime, timedelta
 import os
@@ -7,7 +18,7 @@ import openpyxl
 from werkzeug.utils import secure_filename
 import base64
 from PIL import Image
-import io
+import io as io_module
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -17,7 +28,7 @@ import db
 # Загружаем переменные из .env файла
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='does_not_exist')
 
 # Маппинг для двухэтапного поиска профилей (Latin/Cyrillic → lowercase Cyrillic)
 CYRILLIC_LATIN_MAP_APP = {
@@ -45,6 +56,43 @@ def normalize_text_app(text):
         return ''
     text = str(text)
     return ''.join(CYRILLIC_LATIN_MAP_APP.get(c, c.lower()) for c in text)
+
+def transliterate_cyrillic(text):
+    """Транслитерирует кириллицу в латиницу для безопасных имен файлов
+    
+    Примеры:
+    "ЮП-1625" → "UP-1625"
+    "АЛС-345" → "ALS-345"
+    "Корпус" → "Korpus"
+    """
+    # Таблица транслитерации (кириллица → латиница)
+    transliteration = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+        'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+        'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+        'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+        'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch',
+        'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '',
+        'э': 'e', 'ю': 'yu', 'я': 'ya',
+        # Uppercase
+        'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D',
+        'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh', 'З': 'Z', 'И': 'I',
+        'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N',
+        'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T',
+        'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch',
+        'Ш': 'Sh', 'Щ': 'Sch', 'Ъ': '', 'Ы': 'Y', 'Ь': '',
+        'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
+    }
+    
+    if not text:
+        return ''
+    
+    text = str(text)
+    result = []
+    for char in text:
+        result.append(transliteration.get(char, char))
+    
+    return ''.join(result)
 
 # Определяем директорию где лежит app.py
 BASE_DIR = Path(__file__).parent.absolute()
@@ -709,6 +757,12 @@ def process_dataframe(df):
     
     return products
 
+@app.route('/static/images/<path:filename>')
+def custom_static(filename):
+    # Декодируем имя файла из URL-кодировки
+    filename = unquote(filename)
+    return send_from_directory(PROFILES_DIR, filename)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -767,6 +821,10 @@ def api_missing_profiles():
 def api_catalog():
     """API для получения всех профилей из справочника с поиском и сортировкой (case-insensitive, с нормализацией символов)"""
     try:
+        # ВАЖНО: Обновляем кэш фото каждый раз когда запрашивают каталог
+        # Это гарантирует что новые фото будут видны сразу
+        scan_profile_photos()
+        
         search = request.args.get('search', '').strip()
         sort_by = request.args.get('sort', 'updated_at').strip()  # updated_at, name, usage_count, has_photos
         direction = request.args.get('direction', 'DESC').strip().upper()  # ASC или DESC
@@ -806,6 +864,7 @@ def api_catalog():
 @app.route('/api/catalog/<profile_name>', methods=['DELETE'])
 def api_delete_profile(profile_name):
     """API для удаления профиля из справочника"""
+    profile_name = unquote(profile_name)
     try:
         # Удаляем из БД
         success = db.delete_profile(profile_name)
@@ -832,6 +891,7 @@ def api_delete_profile(profile_name):
 @app.route('/api/catalog/<profile_name>', methods=['PUT'])
 def api_update_profile(profile_name):
     """API для обновления данных профиля (с поддержкой переименования)"""
+    profile_name = unquote(profile_name)
     try:
         data = request.get_json()
         
@@ -1198,7 +1258,7 @@ def upload_profile_photo():
             image_data = image_data.split(',')[1]
         
         img_bytes = base64.b64decode(image_data)
-        img_original = Image.open(io.BytesIO(img_bytes))
+        img_original = Image.open(io_module.BytesIO(img_bytes))
         
         # Конвертируем в RGB если нужно (для PNG с прозрачностью)
         def convert_to_rgb(image):
@@ -1213,6 +1273,8 @@ def upload_profile_photo():
             return image
         
         clean_name = profile_name.strip()
+        
+        print(f"[UPLOAD] Имя профиля: {clean_name}")
         
         # === 1. ПОЛНОЕ ФОТО (оригинал БЕЗ изменений) ===
         img_full = img_original.copy()
@@ -1307,19 +1369,15 @@ def upload_profile_photo():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+# Инициализируем при старте приложения (для gunicorn и локального запуска)
+db.init_database()
+scan_profile_photos()
+start_file_watcher()
+
 if __name__ == '__main__':
     # Загружаем настройки из .env
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('DEBUG', 'True').lower() == 'true'
-    
-    # Инициализируем базу данных
-    db.init_database()
-    
-    # Сканируем фото профилей (один раз при старте)
-    scan_profile_photos()
-    
-    # Запускаем файловый мониторинг
-    start_file_watcher()
     
     print(f"\n[START] Запуск сервера на http://localhost:{port}")
     print(f"   Режим отладки: {debug}")

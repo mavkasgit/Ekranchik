@@ -5,12 +5,27 @@
 """
 
 import sqlite3
+import sys
+import io
 from datetime import datetime
 from pathlib import Path
 import os
 
+# Установляем UTF-8 кодировку для работы с кириллицей
+if sys.stdout and sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    except:
+        pass
+
 # БД хранится в volume для сохранения данных между перезагрузками
-DB_FILE = Path(os.getenv('DB_PATH', '/app/data/profiles.db'))
+# На Docker использует /app/data/profiles.db, на локальной машине - profiles.db в текущей папке
+_db_path = os.getenv('DB_PATH', 'profiles.db')
+DB_FILE = Path(_db_path)
+
+# Если это Docker путь и он не существует, используем локальный
+if str(DB_FILE).startswith('/app/data') and not DB_FILE.exists():
+    DB_FILE = Path('profiles.db')
 
 # Маппинг похожих символов на единую нормальную форму (lowercase Cyrillic)
 # Latin и Cyrillic версии одного символа нормализуются в одно значение (Cyrillic)

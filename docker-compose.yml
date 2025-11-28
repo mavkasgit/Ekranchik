@@ -8,16 +8,20 @@ services:
     
     volumes:
       # БД - прямой доступ к файлу на хосте
-      - D:\KTM\Ekranchik\profiles.db:/app/data/profiles.db
+      - type: bind
+        source: D:\KTM\Ekranchik\profiles.db
+        target: /app/data/profiles.db
       
-      # Фото - прямой доступ к директории на хосте
+      # Фото - простой bind mount
       - D:\KTM\Ekranchik\static\images:/app/data/images
       
-      # Excel папка - прямой доступ (видны временные файлы когда открыт Excel)
-      - D:\KTM\Ekranchik\archive\excel:/app/data/excel
+      # Excel папка - bind mount (видны временные файлы когда открыт Excel)
+      - type: bind
+        source: D:\KTM\Ekranchik\archive\excel
+        target: /app/data/excel
       
       # Резервные копии в volume
-      - ekranchik-data:/app/data
+      # - ekranchik-data:/app/data
       
       # Логи приложений
       - ekranchik-logs:/app/logs
