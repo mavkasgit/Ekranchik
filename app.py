@@ -29,6 +29,7 @@ import db
 load_dotenv()
 
 app = Flask(__name__, static_folder='does_not_exist')
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Маппинг для двухэтапного поиска профилей (Latin/Cyrillic → lowercase Cyrillic)
 CYRILLIC_LATIN_MAP_APP = {
