@@ -46,7 +46,7 @@ static/images/*
 !static/images/.gitkeep
 
 # Database
-profiles.db
+static/profiles.db
 
 # User data
 authorized_users.json

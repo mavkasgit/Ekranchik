@@ -28,10 +28,10 @@ REM Install dependencies
 echo [3/5] Installing dependencies...
 "%CD%\venv\Scripts\python.exe" -m pip install -q -r requirements.txt >nul 2>&1
 
-REM Start server
+REM Start server (with WebSocket support)
 echo [4/5] Starting Flask server...
-start "" "%CD%\venv\Scripts\waitress-serve.exe" --host=0.0.0.0 --port=5000 app:app
-timeout /t 2 >nul
+start "" "%CD%\venv\Scripts\python.exe" app.py
+timeout /t 3 >nul
 
 REM Start bot
 echo [5/5] Starting Telegram bot...

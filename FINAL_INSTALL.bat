@@ -35,7 +35,7 @@ echo.
 REM Install packages with exact versions
 echo [3] Installing packages (THIS WILL TAKE TIME)...
 venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
-venv\Scripts\python.exe -m pip install pandas==2.1.4 openpyxl==3.1.2 flask==3.0.0 Pillow==10.1.0 watchdog==3.0.0 python-dotenv==1.0.0 requests==2.31.0 pydantic==2.11.4 aiogram==3.12.0 aiohttp==3.9.1 waitress==3.0.0
+venv\Scripts\python.exe -m pip install -r requirements.txt
 
 if !errorlevel! neq 0 (
     echo [ERROR] Failed to install packages

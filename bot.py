@@ -108,7 +108,7 @@ async def search_button(message: types.Message):
 async def about_button(message: types.Message):
     """Кнопка О системе"""
     try:
-        await message.answer("Справочник профилей Ekranchik")
+        await message.answer("Справочник профилей завода КТМ-2000")
     except Exception as e:
         logger.error(f"[ABOUT_BTN] Ошибка: {e}")
 
@@ -134,9 +134,11 @@ async def show_profile(message: types.Message, profile: dict):
                 await message.answer_photo(photo=photo_file, caption=caption, parse_mode=ParseMode.MARKDOWN)
             except Exception as e:
                 logger.error(f"Ошибка загрузки фото: {e}")
-                await message.answer(caption, parse_mode=ParseMode.MARKDOWN)
+                caption_with_error = f"Не удалось загрузить фото\n\n{caption}"
+                await message.answer(caption_with_error, parse_mode=ParseMode.MARKDOWN)
         else:
-            await message.answer(caption, parse_mode=ParseMode.MARKDOWN)
+            caption_with_status = f"Нет фото\n\n{caption}"
+            await message.answer(caption_with_status, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.error(f"[SHOW_PROFILE] Ошибка: {e}", exc_info=True)
         await message.answer("Ошибка")
@@ -196,7 +198,7 @@ async def handle_text(message: types.Message):
                 )
             else:
                 logger.warning(f"[AUTH] User {user_id} неверный пароль")
-                await message.answer("Неверный пароль")
+                await message.answer("У вас еще нету доступа, введите пароль для входа")
             return
         
         # Поиск профиля

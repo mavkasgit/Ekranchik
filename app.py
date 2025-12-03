@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask_socketio import SocketIO, emit
 from urllib.parse import unquote
 # -*- coding: utf-8 -*-
 import sys
@@ -29,6 +30,7 @@ import db
 load_dotenv()
 
 app = Flask(__name__, static_folder='does_not_exist')
+socketio = SocketIO(app)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Маппинг для двухэтапного поиска профилей (Latin/Cyrillic → lowercase Cyrillic)
@@ -760,6 +762,62 @@ def process_dataframe(df):
     
     return products
 
+@app.route('/api/signal', methods=['POST'])
+def receive_signal():
+    """
+    Принимает сигнал о выходе подвеса и отправляет событие WebSocket
+    Ищет данные в последних 100 строках Excel (кэшированных)
+    """
+    data = request.get_json()
+    hanger_number = data.get('hanger_number')
+    exit_time = data.get('exit_time') # Время из сигнала, если нужно
+    
+    if not hanger_number:
+        return jsonify({'success': False, 'error': 'hanger_number не указан'}), 400
+        
+    # Загружаем последние 100 строк из кэша (быстро)
+    df = get_dataframe(full_dataset=False)
+    if df is None:
+        return jsonify({'success': False, 'error': 'Не удалось прочитать Excel файл'}), 500
+        
+    # Ищем строку с нужным номером подвеса в последних 100 строках
+    df['number'] = df['number'].astype(str)
+    hanger_data = df[df['number'] == str(hanger_number)]
+    
+    # Если найдено несколько - берем самую последнюю (максимальный индекс)
+    if not hanger_data.empty and len(hanger_data) > 1:
+        hanger_data = hanger_data.tail(1)
+    
+    if hanger_data.empty:
+        # Если не нашли, отправляем просто номер и время
+        product_data = {
+            'number': hanger_number,
+            'time': exit_time or datetime.now().strftime('%H:%M'),
+            'profile': 'НЕ НАЙДЕНО',
+            'profiles_info': [],
+            'date': datetime.now().strftime('%d.%m.%y'),
+            'client': '—',
+            'color': '—',
+            'lamels_qty': '—',
+            'kpz_number': '—',
+            'material_type': '—'
+        }
+    else:
+        # Обрабатываем найденную строку
+        processed_products = process_dataframe(hanger_data)
+        if not processed_products:
+            return jsonify({'success': False, 'error': 'Не удалось обработать данные подвеса'}), 500
+            
+        product_data = processed_products[0]
+        # Если в сигнале есть время, используем его
+        if exit_time:
+            product_data['time'] = exit_time
+            
+    # Отправляем событие всем подключенным клиентам
+    socketio.emit('new_unloaded_hanger', product_data)
+    
+    return jsonify({'success': True, 'message': 'Сигнал получен и отправлен клиентам'})
+
 @app.route('/static/images/<path:filename>')
 def custom_static(filename):
     # Декодируем имя файла из URL-кодировки
@@ -1156,10 +1214,14 @@ def api_file_status():
         mtime = os.path.getmtime(excel_file)
         
         # Если файл открыт, также проверяем временный файл
-        if is_open:
-            temp_mtime = os.path.getmtime(temp_file)
-            # Берем более свежее время
-            mtime = max(mtime, temp_mtime)
+        if is_open and excel_host_dir:
+            try:
+                temp_files = list(pathlib.Path(excel_host_dir).glob("~$*"))
+                if temp_files:
+                    temp_mtime = os.path.getmtime(temp_files[0])
+                    mtime = max(mtime, temp_mtime)
+            except:
+                pass
         
         last_modified = datetime.datetime.fromtimestamp(mtime)
         
@@ -1390,7 +1452,8 @@ if __name__ == '__main__':
     print()
     
     try:
-        app.run(debug=debug, port=port, host='0.0.0.0')
+        # app.run(debug=debug, port=port, host='0.0.0.0')
+        socketio.run(app, debug=debug, port=port, host='0.0.0.0', allow_unsafe_werkzeug=True)
     finally:
         # Останавливаем observer при выходе
         if observer:

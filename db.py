@@ -20,7 +20,7 @@ if sys.stdout and sys.stdout.encoding != 'utf-8':
 
 # БД хранится в volume для сохранения данных между перезагрузками
 # На Docker использует /app/data/profiles.db, на локальной машине - profiles.db в текущей папке
-_db_path = os.getenv('DB_PATH', 'profiles.db')
+_db_path = os.getenv('DB_PATH', 'static/profiles.db')
 DB_FILE = Path(_db_path)
 
 # Если это Docker путь и он не существует, используем локальный
