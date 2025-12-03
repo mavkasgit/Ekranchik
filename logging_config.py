@@ -1,11 +1,13 @@
 import logging
 import logging.handlers
 from pathlib import Path
+import os
 
 def setup_logging(app_name="ekranchik"):
     """Настройка логирования для приложений (Flask и Bot)"""
     
-    logs_dir = Path("/app/logs")
+    # Используем переменную окружения, по умолчанию - папка 'logs'
+    logs_dir = Path(os.getenv('LOGS_DIR', 'logs'))
     logs_dir.mkdir(exist_ok=True, parents=True)
     
     formatter = logging.Formatter(
