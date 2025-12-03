@@ -41,9 +41,11 @@ echo [OK] Directories ready
 
 REM Install dependencies
 echo [INFO] Installing dependencies...
-"%cd%\venv\Scripts\python.exe" -m pip install -q -r requirements.txt 2>nul
+"%cd%\venv\Scripts\python.exe" -m pip install -r requirements.txt
 if !errorlevel! neq 0 (
+    echo.
     echo [ERROR] Failed to install dependencies
+    echo Check errors above
     pause
     exit /b 1
 )
