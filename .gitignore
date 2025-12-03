@@ -52,3 +52,6 @@ profiles.db
 authorized_users.json
 logs/
 pids/
+
+# Archive
+archive/
