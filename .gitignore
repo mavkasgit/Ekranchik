@@ -47,3 +47,8 @@ static/images/*
 
 # Database
 profiles.db
+
+# User data
+authorized_users.json
+logs/
+pids/
