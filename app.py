@@ -137,8 +137,8 @@ def scan_profile_photos():
     _photos_cache.clear()
     
     if not PROFILES_DIR.exists():
-        print(f"[WARN] Папка с фото не найдена: {PROFILES_DIR}")
-        return
+        print(f"[INFO] Создаю папку для фото: {PROFILES_DIR}")
+        PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     
     print(f"[SCAN] Сканирование фото профилей...")
     thumb_count = 0
@@ -463,7 +463,7 @@ def check_profiles_have_photos(profile_string):
     
     # Проверяем каждый профиль
     for profile_dict in profiles:
-        thumb_url, full_url = get_profile_photo(profile_dict["name"])
+        thumb_url, full_url, _ = get_profile_photo(profile_dict["name"])
         if thumb_url or full_url:
             return True  # Хотя бы у одного есть фото
     
@@ -482,7 +482,7 @@ def get_profiles_without_photos():
     # Фильтруем те, у которых нет фото
     missing = []
     for profile in profiles:
-        thumb_url, full_url = get_profile_photo(profile)
+        thumb_url, full_url, _ = get_profile_photo(profile)
         if not thumb_url and not full_url:
             # Считаем сколько раз используется
             count = len(df[df['profile'] == profile])
@@ -517,12 +517,12 @@ def get_recent_profiles(limit=50):
         profiles = split_profiles(profile_name)
         thumb_url, full_url = None, None
         if profiles:
-            thumb_url, full_url = get_profile_photo(profiles[0]["name"])
+            thumb_url, full_url, _ = get_profile_photo(profiles[0]["name"])
         
         # Создаём детальную информацию по каждому профилю
         profiles_info = []
         for p_dict in profiles:
-            p_thumb, p_full = get_profile_photo(p_dict["name"])
+            p_thumb, p_full, _ = get_profile_photo(p_dict["name"])
             profiles_info.append({
                 'name': p_dict["name"],
                 'processing': p_dict["processing"],  # Список обработок
@@ -1087,7 +1087,7 @@ def api_search_duplicates():
     # Формируем результаты
     for profile_name, (idx, similarity) in seen_profiles.items():
         row = df_with_profiles.loc[idx]
-        thumb_url, full_url = get_profile_photo(profile_name)
+        thumb_url, full_url, _ = get_profile_photo(profile_name)
         has_photo = bool(thumb_url or full_url)
         
         # Подсчитываем сколько раз этот профиль встречается в файле
@@ -1270,10 +1270,10 @@ def get_relative_time(dt):
         days = diff.days
         return f'{days} дн. назад'
 
-@app.route('/profiles')
-def profiles_page():
-    """Страница со списком профилей без фото"""
-    return render_template('profiles.html')
+@app.route('/analysis')
+def analysis_page():
+    """Страница анализа"""
+    return render_template('analysis.html')
 
 @app.route('/catalog')
 def catalog_page():

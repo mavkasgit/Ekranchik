@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📚 Справочник профилей - Ekranchik</title>
+    <title>Справочник профилей</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
     <style>
         * {
             margin: 0;
@@ -29,31 +30,42 @@
         
         .header {
             background: white;
-            padding: 20px 30px;
+            padding: 15px 30px;
             border-bottom: 2px solid #f3f4f6;
-            margin-bottom: 20px;
-            position: sticky;
-            top: 20px;
-            z-index: 100;
-            display: grid;
-            grid-template-columns: minmax(200px, auto) auto 1fr;
-            gap: 30px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 100px;
         }
         
         .header-title {
             white-space: nowrap;
+            flex: 1;
         }
         
         .nav-buttons {
             display: flex;
             gap: 12px;
             justify-content: center;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
         }
         
         .header-stats {
+            flex: 1;
             display: flex;
             justify-content: flex-end;
+        }
+        
+        .content-wrapper {
+            margin-top: 110px;
         }
         
         .btn-nav {
@@ -87,9 +99,52 @@
         
         .stats {
             display: flex;
-            gap: 20px;
+            gap: 15px;
+            align-items: center;
             color: #6b7280;
             font-size: 14px;
+        }
+        
+        .stat {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .stat strong {
+            color: #2563eb;
+        }
+        
+        .custom-select {
+            padding: 12px 40px 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            cursor: pointer;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
+            color: #374151;
+            font-weight: 500;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            min-width: 200px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .custom-select:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+        }
+        
+        .custom-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
         
         .stat-item {
@@ -502,16 +557,16 @@
             </div>
             <div class="nav-buttons">
                 <button class="btn-nav" onclick="window.location.href='/'">📊 Таблица</button>
-                <button class="btn-nav" onclick="window.location.href='/profiles'">📷 Профили</button>
                 <button class="btn-nav active">📚 Справочник</button>
+                <button class="btn-nav" onclick="window.location.href='/analysis'">📈 Анализ</button>
             </div>
             <div class="header-stats">
                 <div class="stats">
-                    <div class="stat-item">
+                    <div class="stat">
                         <strong id="total-profiles">0</strong> профилей
                     </div>
-                    <button class="btn-primary" onclick="openCreateModal()" style="margin-left: 20px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">➕ Создать новый</button>
-                    <div class="dropdown" style="margin-left: 10px; position: relative; display: inline-block;">
+                    <button class="btn-primary" onclick="openCreateModal()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">➕ Создать новый</button>
+                    <div class="dropdown" style="position: relative; display: inline-block;">
                         <button class="btn-primary" onclick="loadCatalog(); return false;">🔄 Обновить</button>
                         <div class="dropdown-content" style="position: absolute; top: calc(100% + 5px); right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 180px; z-index: 1000; display: none; overflow: hidden;">
                             <button onclick="syncPhotosFromFolder()" style="display: block; width: 100%; text-align: left; padding: 12px 16px; border: none; background: white; cursor: pointer; font-size: 14px; transition: all 0.2s; color: #374151; font-weight: 500;">
@@ -523,24 +578,24 @@
             </div>
         </div>
         
-        <div style="padding: 0 30px; margin-bottom: 20px;">
+        <div class="content-wrapper">
+        <div style="padding: 20px 30px 20px 30px;">
             <div style="display: flex; gap: 15px; align-items: center;">
                 <div style="position: relative; flex: 1;">
                     <input type="text" id="search-input" placeholder="🔍 Поиск по названию, примечаниям, количеству или длине..." 
-                           style="width: 100%; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; padding-right: 40px;"
+                           style="width: 100%; padding: 12px 20px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; padding-right: 110px;"
                            onkeyup="searchCatalog()">
                     <button id="clear-search-btn" 
-                            style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 18px; cursor: pointer; color: #6b7280; display: none;"
-                            onclick="clearSearch()">✖️</button>
+                            style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; font-size: 14px; cursor: pointer; color: white; display: none; padding: 8px 16px; border-radius: 8px; font-weight: 600;"
+                            onclick="clearSearch()">✖ Очистить</button>
                 </div>
                 
                 <!-- Сортировка -->
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <select id="sort-select" onchange="loadCatalog()" 
-                            style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white;">
-                        <option value="updated_at">По дате изменения</option>
-                        <option value="name">По алфавиту</option>
-                        <option value="has_photos">С фото в начале</option>
+                    <select id="sort-select" onchange="loadCatalog()" class="custom-select">
+                        <option value="updated_at">📅 По дате изменения</option>
+                        <option value="name">🔤 По алфавиту</option>
+                        <option value="has_photos">📷 С фото</option>
                     </select>
                     <button id="sort-direction-btn" onclick="toggleSortDirection()" 
                             style="padding: 12px 16px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 15px; cursor: pointer; background: white; min-width: 50px; font-weight: 600; color: #374151;">
@@ -580,6 +635,7 @@
                 <div class="spinner"></div>
                 Загрузка справочника...
             </div>
+        </div>
         </div>
     </div>
     
@@ -1523,6 +1579,12 @@
         // ESC для закрытия модальных окон
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                // Закрываем photo modal (просмотр фото)
+                const photoModal = document.getElementById('photo-modal');
+                if (photoModal && photoModal.classList.contains('active')) {
+                    closePhotoModal();
+                    return;
+                }
                 // Закрываем edit photo modal
                 const editPhotoModal = document.getElementById('edit-photo-modal');
                 if (editPhotoModal && editPhotoModal.classList.contains('active')) {

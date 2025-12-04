@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Профили без фото</title>
+    <title>Анализ</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
     <style>
         * {
             margin: 0;
@@ -29,31 +30,42 @@
         
         .header {
             background: white;
-            padding: 20px 30px;
+            padding: 15px 30px;
             border-bottom: 2px solid #f3f4f6;
-            margin-bottom: 20px;
-            position: sticky;
-            top: 20px;
-            z-index: 100;
-            display: grid;
-            grid-template-columns: minmax(200px, auto) auto 1fr;
-            gap: 30px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: 100px;
         }
         
         .header-title {
             white-space: nowrap;
+            flex: 1;
         }
         
         .nav-buttons {
             display: flex;
             gap: 12px;
             justify-content: center;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
         }
         
         .header-stats {
+            flex: 1;
             display: flex;
             justify-content: flex-end;
+        }
+        
+        .content-wrapper {
+            margin-top: 110px;
         }
         
         .btn-nav {
@@ -94,13 +106,13 @@
         .stats {
             display: flex;
             gap: 20px;
-            margin-top: 20px;
+            align-items: center;
         }
         
         .stat {
-            background: #f3f4f6;
-            padding: 15px 20px;
-            border-radius: 8px;
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 6px;
             font-size: 14px;
         }
         
@@ -494,13 +506,13 @@
     <div class="container">
         <div class="header">
             <div class="header-title">
-                <h1 id="page-title">📷 Профили без фото</h1>
+                <h1 id="page-title">📈 Анализ</h1>
                 <p class="subtitle" id="page-subtitle" style="font-size: 12px; color: #6b7280; margin-top: 4px;">Список профилей, для которых отсутствуют изображения</p>
             </div>
             <div class="nav-buttons">
                 <button class="btn-nav" onclick="window.location.href='/'">📊 Таблица</button>
-                <button class="btn-nav active">📷 Профили</button>
                 <button class="btn-nav" onclick="window.location.href='/catalog'">📚 Справочник</button>
+                <button class="btn-nav active">📈 Анализ</button>
             </div>
             <div class="header-stats">
                 <div class="stats">
@@ -514,12 +526,12 @@
             </div>
         </div>
         
-        <div class="content">
+        <div class="content-wrapper">
+        <div class="content" style="padding-top: 20px;">
             <div class="buttons">
                 <button class="btn-primary btn-active" id="btn-recent" onclick="switchMode('recent')">🕒 Недавние</button>
                 <button class="btn-primary" id="btn-recent-missing" onclick="switchMode('recent_missing')">⚡ Недавние без фото</button>
                 <button class="btn-secondary" onclick="loadMissingProfiles()">🔄 Обновить</button>
-                <button class="btn-secondary" onclick="window.location.href='/'">← Назад к таблице</button>
             </div>
             
             <div class="info-box" style="background: #e0f2fe; border-color: #0284c7;">
@@ -566,6 +578,7 @@
                     ⬇️ Загрузить еще 20
                 </button>
             </div>
+        </div>
         </div>
     </div>
     
