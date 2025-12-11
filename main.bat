@@ -40,20 +40,55 @@ echo    - Use incremental mode (only new lines)
 echo    - Use for continuous monitoring
 echo    - Press Ctrl+C to stop
 echo.
+echo 6. Select any file from FTP
+echo    - List all available files
+echo    - Choose file by number
+echo    - Parse and send signals
+echo    - Use for testing with historical logs
+echo.
 echo 0. Exit
 echo.
-set /p choice="Enter number (0-5): "
+set /p choice="Enter number (0-6): "
 
 if "%choice%"=="1" goto test_ftp
 if "%choice%"=="2" goto read_today
 if "%choice%"=="3" goto parse_full
 if "%choice%"=="4" goto parse_incremental
 if "%choice%"=="5" goto auto_run
+if "%choice%"=="6" goto select_file
 if "%choice%"=="0" goto exit_app
 
 echo.
 echo Error: invalid choice
 timeout /t 2 >nul
+goto menu
+
+REM ========================================
+REM 6. SELECT ANY FILE FROM FTP
+REM ========================================
+:select_file
+cls
+echo.
+echo ========================================
+echo 6. SELECT ANY FILE FROM FTP
+echo ========================================
+echo.
+echo Description:
+echo - List all available files on FTP
+echo - Select file by number
+echo - Parse hanger unload events
+echo - Send signals to app.py
+echo.
+echo Use for:
+echo - Testing with historical logs
+echo - Choosing specific date
+echo - Debugging
+echo.
+echo Running script...
+echo.
+python scripts/ftp_select.py
+echo.
+pause
 goto menu
 
 REM ========================================
